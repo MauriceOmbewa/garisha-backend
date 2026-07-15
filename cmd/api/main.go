@@ -10,6 +10,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/config"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/database"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/logger"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/router"
 )
 
 func main() {
@@ -66,13 +67,33 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// Placeholder — router and server will be wired here in a later phase
+	// Router
 	// -------------------------------------------------------------------------
 
-	log.Info("startup complete — waiting for shutdown signal")
+	handler := router.New(log)
 
-	// Block until SIGINT / SIGTERM.
-	<-ctx.Done()
+	// -------------------------------------------------------------------------
+	// HTTP Server
+	// -------------------------------------------------------------------------
 
-	log.Info("shutdown signal received, stopping gracefully")
+	srv := router.NewServer(cfg.App.Port, handler, log)
+
+	// Run the server in a goroutine so it does not block the shutdown logic.
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- srv.Start()
+	}()
+
+	// Block until a shutdown signal or a fatal server error.
+	select {
+	case <-ctx.Done():
+		log.Info("shutdown signal received")
+	case err := <-serverErr:
+		log.Error("server error", "error", err)
+	}
+
+	// Stop accepting new requests and drain in-flight ones.
+	srv.Shutdown()
+
+	log.Info("server stopped")
 }
