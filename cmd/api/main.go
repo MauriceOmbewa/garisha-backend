@@ -12,6 +12,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/sales"
+	"github.com/MauriceOmbewa/garisha-backend/internal/service"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	"github.com/MauriceOmbewa/garisha-backend/internal/users"
 	"github.com/MauriceOmbewa/garisha-backend/internal/vehicles"
@@ -155,6 +156,14 @@ func main() {
 	salesHandler := sales.NewHandler(salesService, log)
 
 	// -------------------------------------------------------------------------
+	// Service domain
+	// -------------------------------------------------------------------------
+
+	serviceRepo    := service.NewRepository(db)
+	serviceService := service.NewService(serviceRepo, log)
+	serviceHandler := service.NewHandler(serviceService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
@@ -170,6 +179,7 @@ func main() {
 		CustomersHandler: customersHandler,
 		HireHandler:      hireHandler,
 		SalesHandler:     salesHandler,
+		ServiceHandler:   serviceHandler,
 	})
 
 	// -------------------------------------------------------------------------
