@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
@@ -210,6 +211,14 @@ func main() {
 	notificationsHandler := notifications.NewHandler(notificationsService, log)
 
 	// -------------------------------------------------------------------------
+	// Audit domain
+	// -------------------------------------------------------------------------
+
+	auditRepo    := audit.NewRepository(db)
+	auditService := audit.NewService(auditRepo, log)
+	auditHandler := audit.NewHandler(auditService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
@@ -230,6 +239,7 @@ func main() {
 		PaymentsHandler:       paymentsHandler,
 		InventoryHandler:      inventoryHandler,
 		NotificationsHandler:  notificationsHandler,
+		AuditHandler:          auditHandler,
 	})
 
 	// -------------------------------------------------------------------------
