@@ -57,6 +57,15 @@ func main() {
 	)
 
 	// -------------------------------------------------------------------------
+	// Migrations
+	// -------------------------------------------------------------------------
+
+	if err := database.Migrate(cfg.Database, "file://migrations", log); err != nil {
+		log.Error("failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+
+	// -------------------------------------------------------------------------
 	// Placeholder — router and server will be wired here in a later phase
 	// -------------------------------------------------------------------------
 
