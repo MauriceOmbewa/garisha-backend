@@ -12,6 +12,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
+	"github.com/MauriceOmbewa/garisha-backend/internal/payments"
 	"github.com/MauriceOmbewa/garisha-backend/internal/sales"
 	"github.com/MauriceOmbewa/garisha-backend/internal/service"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
@@ -21,6 +22,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/config"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/database"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/logger"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/mpesa"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/router"
 )
 
@@ -173,6 +175,23 @@ func main() {
 	financeHandler := finance.NewHandler(financeService, log)
 
 	// -------------------------------------------------------------------------
+	// Payments domain
+	// -------------------------------------------------------------------------
+
+	mpesaClient := mpesa.New(
+		cfg.Mpesa.ConsumerKey,
+		cfg.Mpesa.ConsumerSecret,
+		cfg.Mpesa.Passkey,
+		cfg.Mpesa.ShortCode,
+		cfg.Mpesa.CallbackURL,
+		cfg.Mpesa.Environment,
+	)
+
+	paymentsRepo    := payments.NewRepository(db)
+	paymentsService := payments.NewService(paymentsRepo, mpesaClient, log)
+	paymentsHandler := payments.NewHandler(paymentsService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
@@ -190,6 +209,7 @@ func main() {
 		SalesHandler:     salesHandler,
 		ServiceHandler:   serviceHandler,
 		FinanceHandler:   financeHandler,
+		PaymentsHandler:  paymentsHandler,
 	})
 
 	// -------------------------------------------------------------------------

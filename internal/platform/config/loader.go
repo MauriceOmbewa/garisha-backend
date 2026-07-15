@@ -54,6 +54,15 @@ func Load() (*Config, error) {
 			Host: getEnv("REDIS_HOST"),
 			Port: getEnv("REDIS_PORT"),
 		},
+
+		Mpesa: MpesaConfig{
+			ConsumerKey:    getEnv("MPESA_CONSUMER_KEY"),
+			ConsumerSecret: getEnv("MPESA_CONSUMER_SECRET"),
+			Passkey:        getEnv("MPESA_PASSKEY"),
+			ShortCode:      getEnv("MPESA_SHORT_CODE"),
+			CallbackURL:    getEnv("MPESA_CALLBACK_URL"),
+			Environment:    getEnv("MPESA_ENVIRONMENT"),
+		},
 	}
 
 	if err := Validate(cfg); err != nil {

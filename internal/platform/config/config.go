@@ -8,6 +8,7 @@ type Config struct {
 	JWT      JWTConfig
 	Google   GoogleConfig
 	Redis    RedisConfig
+	Mpesa    MpesaConfig
 }
 
 type AppConfig struct {
@@ -41,4 +42,14 @@ type GoogleConfig struct {
 type RedisConfig struct {
 	Host string
 	Port string
+}
+
+// MpesaConfig holds Safaricom Daraja API credentials.
+type MpesaConfig struct {
+	ConsumerKey     string
+	ConsumerSecret  string
+	Passkey         string // Lipa Na M-PESA online passkey
+	ShortCode       string // Business short code (till / paybill)
+	CallbackURL     string // Public HTTPS URL Safaricom will POST results to
+	Environment     string // "sandbox" | "production"
 }
