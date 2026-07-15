@@ -14,12 +14,12 @@
 package errors
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
-	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
 )
 
@@ -38,7 +38,7 @@ const (
 	KindInternal                 // 500 — unexpected server error
 )
 
-// ─── AppError ─────────────────────────────────────────────────────────────────
+// ─── AppError ────────────────────────────────────────────────────────────────
 
 // AppError is the standard error type returned by services and handlers.
 // It carries a Kind for HTTP mapping, a human-readable message for the
@@ -69,7 +69,6 @@ func New(kind Kind, message string) *AppError {
 }
 
 // Wrap creates an AppError that wraps an underlying cause.
-// The cause is logged server-side but never sent to the client.
 func Wrap(kind Kind, message string, cause error) *AppError {
 	return &AppError{Kind: kind, Message: message, Cause: cause}
 }
@@ -100,7 +99,6 @@ func BadRequest(message string) *AppError {
 }
 
 // Internal returns a KindInternal error wrapping a cause.
-// Use this to bubble unexpected infrastructure errors up from repositories.
 func Internal(message string, cause error) *AppError {
 	return Wrap(KindInternal, message, cause)
 }
@@ -127,21 +125,30 @@ func httpStatus(k Kind) int {
 	}
 }
 
+// ─── RequestIDKey ─────────────────────────────────────────────────────────────
+
+// RequestIDFromContext is a function variable that Handle uses to extract the
+// request ID for log annotations.  It is set by the middleware package at
+// init time to avoid an import cycle between errors ↔ middleware.
+// Defaults to a no-op so Handle is safe to call without middleware in tests.
+var RequestIDFromContext func(ctx context.Context) string = func(ctx context.Context) string {
+	return ""
+}
+
 // ─── Handle ───────────────────────────────────────────────────────────────────
 
 // Handle translates err into the appropriate HTTP response and writes it.
 // It is the single exit point for all error handling in handlers.
 //
 // Rules:
-//   - *AppError          → mapped status + client message
-//   - *ValidationErrors  → 422 + field error list
-//   - anything else      → 500 + generic message (cause logged, not exposed)
+//   - *AppError         → mapped status + client message
+//   - *ValidationErrors → 422 + field error list
+//   - anything else     → 500 + generic message (cause logged, not exposed)
 func Handle(w http.ResponseWriter, r *http.Request, err error, log *slog.Logger) {
-	reqID := middleware.GetRequestID(r.Context())
+	reqID := RequestIDFromContext(r.Context())
 
 	var appErr *AppError
 	if errors.As(err, &appErr) {
-		// Log internal errors with their root cause; others at debug level.
 		if appErr.Kind == KindInternal {
 			log.Error("internal error",
 				"error",      appErr.Cause,

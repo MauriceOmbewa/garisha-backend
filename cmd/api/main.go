@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/config"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/database"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/logger"
@@ -20,7 +22,6 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		// Logger is not yet available; fall back to stdlib for this one error.
 		slog.New(slog.NewTextHandler(os.Stderr, nil)).
 			Error("failed to load configuration", "error", err)
 		os.Exit(1)
@@ -32,8 +33,8 @@ func main() {
 
 	log := logger.New(cfg.App.Env, os.Stdout)
 	log.Info("configuration loaded",
-		"app", cfg.App.Name,
-		"env", cfg.App.Env,
+		"app",  cfg.App.Name,
+		"env",  cfg.App.Env,
 		"port", cfg.App.Port,
 	)
 
@@ -67,10 +68,38 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
+	// Platform infrastructure
+	// -------------------------------------------------------------------------
+
+	jwtManager, err := platformauth.NewManager(
+		cfg.JWT.Secret,
+		cfg.JWT.AccessTTL,
+		cfg.JWT.RefreshTTL,
+	)
+	if err != nil {
+		log.Error("failed to create JWT manager", "error", err)
+		os.Exit(1)
+	}
+
+	googleVerifier := platformauth.NewGoogleVerifier(cfg.Google.ClientID)
+
+	// -------------------------------------------------------------------------
+	// Auth domain
+	// -------------------------------------------------------------------------
+
+	authRepo    := auth.NewRepository(db)
+	authService := auth.NewService(authRepo, jwtManager, googleVerifier, log)
+	authHandler := auth.NewHandler(authService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
-	handler := router.New(log)
+	handler := router.New(router.Dependencies{
+		Log:         log,
+		JWTManager:  jwtManager,
+		AuthHandler: authHandler,
+	})
 
 	// -------------------------------------------------------------------------
 	// HTTP Server
@@ -78,13 +107,11 @@ func main() {
 
 	srv := router.NewServer(cfg.App.Port, handler, log)
 
-	// Run the server in a goroutine so it does not block the shutdown logic.
 	serverErr := make(chan error, 1)
 	go func() {
 		serverErr <- srv.Start()
 	}()
 
-	// Block until a shutdown signal or a fatal server error.
 	select {
 	case <-ctx.Done():
 		log.Info("shutdown signal received")
@@ -92,7 +119,6 @@ func main() {
 		log.Error("server error", "error", err)
 	}
 
-	// Stop accepting new requests and drain in-flight ones.
 	srv.Shutdown()
 
 	log.Info("server stopped")

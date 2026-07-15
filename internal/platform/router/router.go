@@ -1,39 +1,49 @@
 // Package router builds and returns the application's HTTP handler tree.
-// It wires the middleware chain and registers all route groups under the
-// /api/v1 prefix.  Domain-specific route registration is delegated to each
-// internal module so this file stays thin.
+// Domain route groups are registered by passing the mux to each module's
+// RegisterRoutes function, keeping this file thin.
 package router
 
 import (
 	"log/slog"
 	"net/http"
 
+	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
 )
 
-// New constructs the root http.Handler with all middleware applied and
-// routes registered.  Additional domain handlers will be mounted here in
-// later phases.
-func New(log *slog.Logger) http.Handler {
+// Dependencies groups every cross-cutting dependency the router needs to
+// wire up all domain modules.  New fields are added here as modules are built.
+type Dependencies struct {
+	Log        *slog.Logger
+	JWTManager *platformauth.Manager
+	AuthHandler *auth.Handler
+}
+
+// New constructs the root http.Handler with all middleware applied and all
+// domain routes registered.
+func New(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
-	// ── Health & readiness ───────────────────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/health", healthHandler(log))
+	// ── Health ───────────────────────────────────────────────────────────────
+	mux.HandleFunc("GET /api/v1/health", healthHandler(deps.Log))
 
-	// ── Global middleware chain ──────────────────────────────────────────────
-	// Applied outermost-first so execution order is:
+	// ── Domain routes ────────────────────────────────────────────────────────
+	auth.RegisterRoutes(mux, deps.AuthHandler, deps.JWTManager, deps.Log)
+
+	// ── Global middleware chain ───────────────────────────────────────────────
+	// Execution order (outermost → innermost):
 	//   RequestID → CORS → Recovery → Logger → mux
-	handler := middleware.Logger(log)(mux)
-	handler = middleware.Recovery(log)(handler)
+	handler := middleware.Logger(deps.Log)(mux)
+	handler = middleware.Recovery(deps.Log)(handler)
 	handler = middleware.CORS(middleware.DefaultCORSConfig())(handler)
 	handler = middleware.RequestID(handler)
 
 	return handler
 }
 
-// healthHandler returns a simple liveness probe used by load balancers and
-// container orchestrators to verify the process is up.
+// healthHandler returns a simple liveness probe.
 func healthHandler(log *slog.Logger) http.HandlerFunc {
 	type healthResponse struct {
 		Status string `json:"status"`

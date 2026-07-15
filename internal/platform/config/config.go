@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
@@ -23,8 +25,13 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+// JWTConfig holds signing secret and token lifetimes.
+// AccessTTL and RefreshTTL are parsed from environment variables as
+// Go duration strings (e.g. "15m", "168h").
 type JWTConfig struct {
-	Secret string
+	Secret     string
+	AccessTTL  time.Duration
+	RefreshTTL time.Duration
 }
 
 type GoogleConfig struct {
