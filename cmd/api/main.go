@@ -13,6 +13,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/inventory"
+	"github.com/MauriceOmbewa/garisha-backend/internal/notifications"
 	"github.com/MauriceOmbewa/garisha-backend/internal/payments"
 	"github.com/MauriceOmbewa/garisha-backend/internal/sales"
 	"github.com/MauriceOmbewa/garisha-backend/internal/service"
@@ -201,25 +202,34 @@ func main() {
 	inventoryHandler := inventory.NewHandler(inventoryService, log)
 
 	// -------------------------------------------------------------------------
+	// Notifications domain
+	// -------------------------------------------------------------------------
+
+	notificationsRepo    := notifications.NewRepository(db)
+	notificationsService := notifications.NewService(notificationsRepo, log)
+	notificationsHandler := notifications.NewHandler(notificationsService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
 	handler := router.New(router.Dependencies{
-		Log:               log,
-		JWTManager:        jwtManager,
-		TenantResolver:    tenantsRepo,
-		AuthHandler:       authHandler,
-		TenantsHandler:    tenantsHandler,
-		CompanyHandler:    companyHandler,
-		UsersHandler:      usersHandler,
-		VehiclesHandler:   vehiclesHandler,
-		CustomersHandler:  customersHandler,
-		HireHandler:       hireHandler,
-		SalesHandler:      salesHandler,
-		ServiceHandler:    serviceHandler,
-		FinanceHandler:    financeHandler,
-		PaymentsHandler:   paymentsHandler,
-		InventoryHandler:  inventoryHandler,
+		Log:                   log,
+		JWTManager:            jwtManager,
+		TenantResolver:        tenantsRepo,
+		AuthHandler:           authHandler,
+		TenantsHandler:        tenantsHandler,
+		CompanyHandler:        companyHandler,
+		UsersHandler:          usersHandler,
+		VehiclesHandler:       vehiclesHandler,
+		CustomersHandler:      customersHandler,
+		HireHandler:           hireHandler,
+		SalesHandler:          salesHandler,
+		ServiceHandler:        serviceHandler,
+		FinanceHandler:        financeHandler,
+		PaymentsHandler:       paymentsHandler,
+		InventoryHandler:      inventoryHandler,
+		NotificationsHandler:  notificationsHandler,
 	})
 
 	// -------------------------------------------------------------------------
