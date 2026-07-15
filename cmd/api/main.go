@@ -12,6 +12,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
+	"github.com/MauriceOmbewa/garisha-backend/internal/dashboard"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/inventory"
@@ -230,6 +231,14 @@ func main() {
 	reportsHandler := reports.NewHandler(reportsService, log)
 
 	// -------------------------------------------------------------------------
+	// Dashboard domain
+	// -------------------------------------------------------------------------
+
+	dashboardRepo    := dashboard.NewRepository(db)
+	dashboardService := dashboard.NewService(dashboardRepo, log)
+	dashboardHandler := dashboard.NewHandler(dashboardService, log)
+
+	// -------------------------------------------------------------------------
 	// Background workers
 	// -------------------------------------------------------------------------
 
@@ -274,6 +283,7 @@ func main() {
 		NotificationsHandler:  notificationsHandler,
 		AuditHandler:          auditHandler,
 		ReportsHandler:        reportsHandler,
+		DashboardHandler:      dashboardHandler,
 	})
 
 	// -------------------------------------------------------------------------
