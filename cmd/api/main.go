@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
@@ -27,6 +28,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/logger"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/mpesa"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/router"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/workers"
 )
 
 func main() {
@@ -219,6 +221,28 @@ func main() {
 	auditHandler := audit.NewHandler(auditService, log)
 
 	// -------------------------------------------------------------------------
+	// Background workers
+	// -------------------------------------------------------------------------
+
+	jobQueue := workers.NewQueue(db)
+
+	workerRegistry := workers.Registry{
+		workers.TypeSendEmail:        workers.NewEmailHandler(log),
+		workers.TypeSendSMS:          workers.NewSMSHandler(log),
+		workers.TypePollMpesaPayment: workers.NewMpesaPollHandler(log),
+		workers.TypeSendReminder:     workers.NewReminderHandler(log),
+		workers.TypeSendNotification: workers.NewNotificationHandler(log),
+		workers.TypeSendWebhook:      workers.NewWebhookHandler(log),
+	}
+
+	workerPool := workers.NewWorker(jobQueue, workerRegistry, log, workers.Config{
+		Concurrency:  3,
+		PollInterval: 5 * time.Second,
+	})
+
+	workerPool.Start(ctx)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
@@ -260,7 +284,9 @@ func main() {
 		log.Error("server error", "error", err)
 	}
 
+	// Stop the HTTP server first, then drain the worker pool.
 	srv.Shutdown()
+	workerPool.Stop()
 
 	log.Info("server stopped")
 }
