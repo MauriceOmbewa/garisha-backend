@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/config"
@@ -101,15 +102,24 @@ func main() {
 	authHandler := auth.NewHandler(authService, log)
 
 	// -------------------------------------------------------------------------
+	// Company domain
+	// -------------------------------------------------------------------------
+
+	companyRepo    := company.NewRepository(db)
+	companyService := company.NewService(companyRepo, log)
+	companyHandler := company.NewHandler(companyService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
 	handler := router.New(router.Dependencies{
 		Log:            log,
 		JWTManager:     jwtManager,
-		TenantResolver: tenantsRepo,   // *tenants.Repository satisfies TenantResolver
+		TenantResolver: tenantsRepo,
 		AuthHandler:    authHandler,
 		TenantsHandler: tenantsHandler,
+		CompanyHandler: companyHandler,
 	})
 
 	// -------------------------------------------------------------------------

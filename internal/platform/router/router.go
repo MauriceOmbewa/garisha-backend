@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
@@ -22,6 +23,7 @@ type Dependencies struct {
 	TenantResolver middleware.TenantResolver
 	AuthHandler    *auth.Handler
 	TenantsHandler *tenants.Handler
+	CompanyHandler *company.Handler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -39,6 +41,9 @@ func New(deps Dependencies) http.Handler {
 
 	// ── Super-admin tenant management (no tenant header required) ─────────────
 	tenants.RegisterRoutes(mux, deps.TenantsHandler, deps.JWTManager, deps.Log)
+
+	// ── Company profile (tenant-scoped) ───────────────────────────────────────
+	company.RegisterRoutes(mux, deps.CompanyHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):
