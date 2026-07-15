@@ -12,6 +12,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
+	"github.com/MauriceOmbewa/garisha-backend/internal/inventory"
 	"github.com/MauriceOmbewa/garisha-backend/internal/payments"
 	"github.com/MauriceOmbewa/garisha-backend/internal/sales"
 	"github.com/MauriceOmbewa/garisha-backend/internal/service"
@@ -192,24 +193,33 @@ func main() {
 	paymentsHandler := payments.NewHandler(paymentsService, log)
 
 	// -------------------------------------------------------------------------
+	// Inventory domain
+	// -------------------------------------------------------------------------
+
+	inventoryRepo    := inventory.NewRepository(db)
+	inventoryService := inventory.NewService(inventoryRepo, log)
+	inventoryHandler := inventory.NewHandler(inventoryService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
 	handler := router.New(router.Dependencies{
-		Log:              log,
-		JWTManager:       jwtManager,
-		TenantResolver:   tenantsRepo,
-		AuthHandler:      authHandler,
-		TenantsHandler:   tenantsHandler,
-		CompanyHandler:   companyHandler,
-		UsersHandler:     usersHandler,
-		VehiclesHandler:  vehiclesHandler,
-		CustomersHandler: customersHandler,
-		HireHandler:      hireHandler,
-		SalesHandler:     salesHandler,
-		ServiceHandler:   serviceHandler,
-		FinanceHandler:   financeHandler,
-		PaymentsHandler:  paymentsHandler,
+		Log:               log,
+		JWTManager:        jwtManager,
+		TenantResolver:    tenantsRepo,
+		AuthHandler:       authHandler,
+		TenantsHandler:    tenantsHandler,
+		CompanyHandler:    companyHandler,
+		UsersHandler:      usersHandler,
+		VehiclesHandler:   vehiclesHandler,
+		CustomersHandler:  customersHandler,
+		HireHandler:       hireHandler,
+		SalesHandler:      salesHandler,
+		ServiceHandler:    serviceHandler,
+		FinanceHandler:    financeHandler,
+		PaymentsHandler:   paymentsHandler,
+		InventoryHandler:  inventoryHandler,
 	})
 
 	// -------------------------------------------------------------------------
