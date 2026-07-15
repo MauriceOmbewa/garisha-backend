@@ -11,6 +11,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	"github.com/MauriceOmbewa/garisha-backend/internal/users"
+	"github.com/MauriceOmbewa/garisha-backend/internal/vehicles"
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
@@ -24,8 +25,9 @@ type Dependencies struct {
 	TenantResolver middleware.TenantResolver
 	AuthHandler    *auth.Handler
 	TenantsHandler *tenants.Handler
-	CompanyHandler *company.Handler
-	UsersHandler   *users.Handler
+	CompanyHandler  *company.Handler
+	UsersHandler    *users.Handler
+	VehiclesHandler *vehicles.Handler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -49,6 +51,9 @@ func New(deps Dependencies) http.Handler {
 
 	// ── User management (tenant-scoped) ───────────────────────────────────────
 	users.RegisterRoutes(mux, deps.UsersHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
+
+	// ── Vehicle management (tenant-scoped) ────────────────────────────────────
+	vehicles.RegisterRoutes(mux, deps.VehiclesHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):
