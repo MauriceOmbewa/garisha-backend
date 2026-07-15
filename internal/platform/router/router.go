@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
@@ -16,9 +17,11 @@ import (
 // Dependencies groups every cross-cutting dependency the router needs to
 // wire up all domain modules.  New fields are added here as modules are built.
 type Dependencies struct {
-	Log        *slog.Logger
-	JWTManager *platformauth.Manager
-	AuthHandler *auth.Handler
+	Log            *slog.Logger
+	JWTManager     *platformauth.Manager
+	TenantResolver middleware.TenantResolver
+	AuthHandler    *auth.Handler
+	TenantsHandler *tenants.Handler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -26,11 +29,16 @@ type Dependencies struct {
 func New(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
-	// ── Health ───────────────────────────────────────────────────────────────
+	// ── Health (no tenant context needed) ────────────────────────────────────
 	mux.HandleFunc("GET /api/v1/health", healthHandler(deps.Log))
 
-	// ── Domain routes ────────────────────────────────────────────────────────
+	// ── Auth routes (public + protected, no tenant scope enforcement) ─────────
+	// Login and refresh are public and use tenant resolution internally.
+	// /auth/me only needs authentication, not a tenant header.
 	auth.RegisterRoutes(mux, deps.AuthHandler, deps.JWTManager, deps.Log)
+
+	// ── Super-admin tenant management (no tenant header required) ─────────────
+	tenants.RegisterRoutes(mux, deps.TenantsHandler, deps.JWTManager, deps.Log)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):

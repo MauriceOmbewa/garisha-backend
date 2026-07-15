@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
+	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/config"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/database"
@@ -84,6 +85,14 @@ func main() {
 	googleVerifier := platformauth.NewGoogleVerifier(cfg.Google.ClientID)
 
 	// -------------------------------------------------------------------------
+	// Tenants domain (also serves as the TenantResolver for middleware)
+	// -------------------------------------------------------------------------
+
+	tenantsRepo    := tenants.NewRepository(db)
+	tenantsService := tenants.NewService(tenantsRepo, log)
+	tenantsHandler := tenants.NewHandler(tenantsService, log)
+
+	// -------------------------------------------------------------------------
 	// Auth domain
 	// -------------------------------------------------------------------------
 
@@ -96,9 +105,11 @@ func main() {
 	// -------------------------------------------------------------------------
 
 	handler := router.New(router.Dependencies{
-		Log:         log,
-		JWTManager:  jwtManager,
-		AuthHandler: authHandler,
+		Log:            log,
+		JWTManager:     jwtManager,
+		TenantResolver: tenantsRepo,   // *tenants.Repository satisfies TenantResolver
+		AuthHandler:    authHandler,
+		TenantsHandler: tenantsHandler,
 	})
 
 	// -------------------------------------------------------------------------
