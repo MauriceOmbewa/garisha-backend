@@ -8,14 +8,15 @@ import (
 
 // User represents an authenticated platform user.
 type User struct {
-	ID        string
-	TenantID  *string // nil for super-admins
-	GoogleSub string
-	Email     string
-	Name      string
-	AvatarURL *string
-	Role      string
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string
+	TenantID    *string // nil for super-admins
+	GoogleSub   string
+	Email       string
+	Name        string
+	AvatarURL   *string
+	Role        string
+	Permissions []string // per-user permission overrides on top of role defaults
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }

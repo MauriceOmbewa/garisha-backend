@@ -25,7 +25,7 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 func (r *Repository) FindByGoogleSub(ctx context.Context, tenantID, googleSub string) (*User, error) {
 	const q = `
 		SELECT id, tenant_id, google_sub, email, name, avatar_url, role,
-		       is_active, created_at, updated_at
+		       permissions, is_active, created_at, updated_at
 		FROM   users
 		WHERE  tenant_id  = $1
 		AND    google_sub = $2
@@ -46,7 +46,7 @@ func (r *Repository) FindByGoogleSub(ctx context.Context, tenantID, googleSub st
 func (r *Repository) FindByID(ctx context.Context, id string) (*User, error) {
 	const q = `
 		SELECT id, tenant_id, google_sub, email, name, avatar_url, role,
-		       is_active, created_at, updated_at
+		       permissions, is_active, created_at, updated_at
 		FROM   users
 		WHERE  id = $1
 		LIMIT  1`
@@ -68,7 +68,7 @@ func (r *Repository) Create(ctx context.Context, params CreateUserParams) (*User
 		INSERT INTO users (tenant_id, google_sub, email, name, avatar_url, role)
 		VALUES            ($1, $2, $3, $4, $5, $6)
 		RETURNING id, tenant_id, google_sub, email, name, avatar_url, role,
-		          is_active, created_at, updated_at`
+		          permissions, is_active, created_at, updated_at`
 
 	user, err := scanUser(r.db.QueryRow(ctx, q,
 		params.TenantID,
@@ -107,6 +107,7 @@ func scanUser(row pgx.Row) (*User, error) {
 		&u.Name,
 		&u.AvatarURL,
 		&u.Role,
+		&u.Permissions,
 		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,

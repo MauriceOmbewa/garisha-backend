@@ -39,12 +39,13 @@ type authResponse struct {
 }
 
 type userDTO struct {
-	ID        string  `json:"id"`
-	TenantID  *string `json:"tenant_id"`
-	Email     string  `json:"email"`
-	Name      string  `json:"name"`
-	AvatarURL *string `json:"avatar_url"`
-	Role      string  `json:"role"`
+	ID          string   `json:"id"`
+	TenantID    *string  `json:"tenant_id"`
+	Email       string   `json:"email"`
+	Name        string   `json:"name"`
+	AvatarURL   *string  `json:"avatar_url"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -115,12 +116,18 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 func toUserDTO(u *User) userDTO {
+	perms := make([]string, 0)
+	if u.Permissions != nil {
+		perms = u.Permissions
+	}
+
 	return userDTO{
-		ID:        u.ID,
-		TenantID:  u.TenantID,
-		Email:     u.Email,
-		Name:      u.Name,
-		AvatarURL: u.AvatarURL,
-		Role:      u.Role,
+		ID:          u.ID,
+		TenantID:    u.TenantID,
+		Email:       u.Email,
+		Name:        u.Name,
+		AvatarURL:   u.AvatarURL,
+		Role:        u.Role,
+		Permissions: perms,
 	}
 }
