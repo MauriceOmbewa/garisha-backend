@@ -10,6 +10,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
+	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	"github.com/MauriceOmbewa/garisha-backend/internal/users"
 	"github.com/MauriceOmbewa/garisha-backend/internal/vehicles"
@@ -137,19 +138,28 @@ func main() {
 	customersHandler := customers.NewHandler(customersService, log)
 
 	// -------------------------------------------------------------------------
+	// Hire domain
+	// -------------------------------------------------------------------------
+
+	hireRepo    := hire.NewRepository(db)
+	hireService := hire.NewService(hireRepo, log)
+	hireHandler := hire.NewHandler(hireService, log)
+
+	// -------------------------------------------------------------------------
 	// Router
 	// -------------------------------------------------------------------------
 
 	handler := router.New(router.Dependencies{
-		Log:             log,
-		JWTManager:      jwtManager,
-		TenantResolver:  tenantsRepo,
-		AuthHandler:     authHandler,
-		TenantsHandler:  tenantsHandler,
-		CompanyHandler:  companyHandler,
-		UsersHandler:    usersHandler,
-		VehiclesHandler: vehiclesHandler,
+		Log:              log,
+		JWTManager:       jwtManager,
+		TenantResolver:   tenantsRepo,
+		AuthHandler:      authHandler,
+		TenantsHandler:   tenantsHandler,
+		CompanyHandler:   companyHandler,
+		UsersHandler:     usersHandler,
+		VehiclesHandler:  vehiclesHandler,
 		CustomersHandler: customersHandler,
+		HireHandler:      hireHandler,
 	})
 
 	// -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
+	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/tenants"
 	"github.com/MauriceOmbewa/garisha-backend/internal/users"
 	"github.com/MauriceOmbewa/garisha-backend/internal/vehicles"
@@ -21,15 +22,16 @@ import (
 // Dependencies groups every cross-cutting dependency the router needs to
 // wire up all domain modules.  New fields are added here as modules are built.
 type Dependencies struct {
-	Log            *slog.Logger
-	JWTManager     *platformauth.Manager
-	TenantResolver middleware.TenantResolver
-	AuthHandler    *auth.Handler
-	TenantsHandler *tenants.Handler
+	Log             *slog.Logger
+	JWTManager      *platformauth.Manager
+	TenantResolver  middleware.TenantResolver
+	AuthHandler     *auth.Handler
+	TenantsHandler  *tenants.Handler
 	CompanyHandler  *company.Handler
 	UsersHandler    *users.Handler
-	VehiclesHandler *vehicles.Handler
+	VehiclesHandler  *vehicles.Handler
 	CustomersHandler *customers.Handler
+	HireHandler      *hire.Handler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -57,8 +59,11 @@ func New(deps Dependencies) http.Handler {
 	// ── Vehicle management (tenant-scoped) ────────────────────────────────────
 	vehicles.RegisterRoutes(mux, deps.VehiclesHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
-	// ── Customer management (tenant-scoped) ────────────────────────────────────
+	// ── Customer management (tenant-scoped) ──────────────────────────────────
 	customers.RegisterRoutes(mux, deps.CustomersHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
+
+	// ── Car hire / bookings (tenant-scoped) ───────────────────────────────────
+	hire.RegisterRoutes(mux, deps.HireHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):
