@@ -12,6 +12,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/dashboard"
+	"github.com/MauriceOmbewa/garisha-backend/internal/files"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/inventory"
@@ -50,6 +51,7 @@ type Dependencies struct {
 	AuditHandler          *audit.Handler
 	ReportsHandler        *reports.Handler
 	DashboardHandler      *dashboard.Handler
+	FilesHandler          *files.Handler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -109,6 +111,9 @@ func New(deps Dependencies) http.Handler {
 
 	// ── Dashboard / analytics (tenant-scoped) ─────────────────────────────────
 	dashboard.RegisterRoutes(mux, deps.DashboardHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
+
+	// ── File management (tenant-scoped) ───────────────────────────────────────
+	files.RegisterRoutes(mux, deps.FilesHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):

@@ -13,6 +13,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/dashboard"
+	"github.com/MauriceOmbewa/garisha-backend/internal/files"
 	"github.com/MauriceOmbewa/garisha-backend/internal/finance"
 	"github.com/MauriceOmbewa/garisha-backend/internal/hire"
 	"github.com/MauriceOmbewa/garisha-backend/internal/inventory"
@@ -30,6 +31,7 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/logger"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/mpesa"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/router"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/storage"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/workers"
 )
 
@@ -239,6 +241,28 @@ func main() {
 	dashboardHandler := dashboard.NewHandler(dashboardService, log)
 
 	// -------------------------------------------------------------------------
+	// File storage + files domain
+	// -------------------------------------------------------------------------
+
+	storageClient, err := storage.New(storage.Config{
+		Endpoint:        cfg.Storage.Endpoint,
+		Region:          cfg.Storage.Region,
+		Bucket:          cfg.Storage.Bucket,
+		AccessKeyID:     cfg.Storage.AccessKeyID,
+		SecretAccessKey: cfg.Storage.SecretAccessKey,
+		UseSSL:          cfg.Storage.UseSSL,
+		PublicBaseURL:   cfg.Storage.PublicBaseURL,
+	})
+	if err != nil {
+		log.Error("failed to create storage client", "error", err)
+		os.Exit(1)
+	}
+
+	filesRepo    := files.NewRepository(db)
+	filesService := files.NewService(filesRepo, storageClient, log)
+	filesHandler := files.NewHandler(filesService, log)
+
+	// -------------------------------------------------------------------------
 	// Background workers
 	// -------------------------------------------------------------------------
 
@@ -284,6 +308,7 @@ func main() {
 		AuditHandler:          auditHandler,
 		ReportsHandler:        reportsHandler,
 		DashboardHandler:      dashboardHandler,
+		FilesHandler:          filesHandler,
 	})
 
 	// -------------------------------------------------------------------------

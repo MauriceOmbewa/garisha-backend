@@ -9,6 +9,7 @@ type Config struct {
 	Google   GoogleConfig
 	Redis    RedisConfig
 	Mpesa    MpesaConfig
+	Storage  StorageConfig
 }
 
 type AppConfig struct {
@@ -52,4 +53,16 @@ type MpesaConfig struct {
 	ShortCode       string // Business short code (till / paybill)
 	CallbackURL     string // Public HTTPS URL Safaricom will POST results to
 	Environment     string // "sandbox" | "production"
+}
+
+// StorageConfig holds S3-compatible object storage credentials.
+// Works with AWS S3, MinIO, Cloudflare R2, DigitalOcean Spaces.
+type StorageConfig struct {
+	Endpoint        string // e.g. "s3.amazonaws.com" or custom MinIO host
+	Region          string // e.g. "us-east-1" or "auto" for R2
+	Bucket          string // default bucket name
+	AccessKeyID     string
+	SecretAccessKey string
+	UseSSL          bool   // true in production
+	PublicBaseURL   string // CDN/public URL prefix for generating download links
 }

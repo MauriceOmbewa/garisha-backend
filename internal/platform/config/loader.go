@@ -63,6 +63,16 @@ func Load() (*Config, error) {
 			CallbackURL:    getEnv("MPESA_CALLBACK_URL"),
 			Environment:    getEnv("MPESA_ENVIRONMENT"),
 		},
+
+		Storage: StorageConfig{
+			Endpoint:        getEnv("STORAGE_ENDPOINT"),
+			Region:          getEnv("STORAGE_REGION"),
+			Bucket:          getEnv("STORAGE_BUCKET"),
+			AccessKeyID:     getEnv("STORAGE_ACCESS_KEY_ID"),
+			SecretAccessKey: getEnv("STORAGE_SECRET_ACCESS_KEY"),
+			UseSSL:          getEnv("STORAGE_USE_SSL") != "false",
+			PublicBaseURL:   getEnv("STORAGE_PUBLIC_BASE_URL"),
+		},
 	}
 
 	if err := Validate(cfg); err != nil {
