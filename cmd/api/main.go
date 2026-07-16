@@ -290,6 +290,7 @@ func main() {
 
 	handler := router.New(router.Dependencies{
 		Log:                   log,
+		DB:                    db,
 		JWTManager:            jwtManager,
 		TenantResolver:        tenantsRepo,
 		AuthHandler:           authHandler,

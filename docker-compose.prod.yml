@@ -1,0 +1,47 @@
+# Production overrides.  Merge with base:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Key differences from dev:
+#   - No MinIO service (use real S3/R2)
+#   - No exposed postgres port
+#   - Resource limits on the API container
+#   - Log driver set to json-file with rotation
+
+services:
+
+  postgres:
+    ports: []   # not exposed to host in production
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+
+  # MinIO is disabled in production — remove it by not including this
+  # service in the prod compose or by setting a profile.
+  minio:
+    profiles:
+      - dev   # only starts with --profile dev
+
+  api:
+    environment:
+      APP_ENV:         production
+      STORAGE_USE_SSL: "true"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

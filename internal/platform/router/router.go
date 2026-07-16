@@ -4,8 +4,12 @@
 package router
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
@@ -33,6 +37,7 @@ import (
 // wire up all domain modules.  New fields are added here as modules are built.
 type Dependencies struct {
 	Log             *slog.Logger
+	DB              *pgxpool.Pool  // used by the health check
 	JWTManager      *platformauth.Manager
 	TenantResolver  middleware.TenantResolver
 	AuthHandler     *auth.Handler
@@ -60,7 +65,7 @@ func New(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
 	// ── Health (no tenant context needed) ────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/health", healthHandler(deps.Log))
+	mux.HandleFunc("GET /api/v1/health", healthHandler(deps.DB, deps.Log))
 
 	// ── Auth routes (public + protected, no tenant scope enforcement) ─────────
 	// Login and refresh are public and use tenant resolution internally.
@@ -126,15 +131,49 @@ func New(deps Dependencies) http.Handler {
 	return handler
 }
 
-// healthHandler returns a simple liveness probe.
-func healthHandler(log *slog.Logger) http.HandlerFunc {
-	type healthResponse struct {
+// healthHandler returns a liveness + readiness probe.
+// Returns 200 when the app and DB are healthy; 503 when the DB is unreachable.
+func healthHandler(db *pgxpool.Pool, log *slog.Logger) http.HandlerFunc {
+	type check struct {
 		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	type healthResponse struct {
+		Status   string           `json:"status"`
+		Checks   map[string]check `json:"checks"`
+		Version  string           `json:"version"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		response.Success(w, http.StatusOK, "service is healthy", healthResponse{
-			Status: "ok",
-		}, log)
+		checks := make(map[string]check)
+		overall := "ok"
+
+		// Database ping with a 3-second timeout.
+		dbStatus := check{Status: "ok"}
+		if db != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+
+			if err := db.Ping(ctx); err != nil {
+				dbStatus = check{Status: "error", Error: "database unreachable"}
+				overall = "degraded"
+				log.Warn("health check: db ping failed", "error", err)
+			}
+		}
+		checks["database"] = dbStatus
+
+		resp := healthResponse{
+			Status:  overall,
+			Checks:  checks,
+			Version: "1.0.0",
+		}
+
+		statusCode := http.StatusOK
+		if overall != "ok" {
+			statusCode = http.StatusServiceUnavailable
+		}
+
+		response.Success(w, statusCode, "health check", resp, log)
 	}
 }
