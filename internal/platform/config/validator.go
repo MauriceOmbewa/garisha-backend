@@ -29,10 +29,12 @@ func Validate(cfg *Config) error {
 
 		{cfg.JWT.Secret, "JWT_SECRET"},
 
-		{cfg.Google.ClientID, "GOOGLE_CLIENT_ID"},
+		// {cfg.Google.ClientID, "GOOGLE_CLIENT_ID"},
 
-		{cfg.Redis.Host, "REDIS_HOST"},
-		{cfg.Redis.Port, "REDIS_PORT"},
+		// {cfg.Redis.Host, "REDIS_HOST"},
+		// {cfg.Redis.Port, "REDIS_PORT"},
+		// Google and Redis are required in production but optional for local dev.
+		// Remove these from the required list to allow starting without them.
 	}
 
 	for _, r := range required {
