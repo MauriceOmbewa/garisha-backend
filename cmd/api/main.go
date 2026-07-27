@@ -323,6 +323,7 @@ func main() {
 		DB:                    db,
 		JWTManager:            jwtManager,
 		TenantResolver:        tenantsRepo,
+		AllowedOrigins:        cfg.Google.AllowedOrigins,
 		AuthHandler:           authHandler,
 		TenantsHandler:        tenantsHandler,
 		CompanyHandler:        companyHandler,

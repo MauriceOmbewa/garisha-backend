@@ -24,31 +24,39 @@ func NewHandler(svc *Service, log *slog.Logger, secureCookie bool) *Handler {
 }
 
 // setAccessCookie writes the access token as an HttpOnly cookie.
-// Path is "/" so it is sent on every request to the backend — the frontend
-// fetches /api/v1/* and the browser attaches it automatically.
 func (h *Handler) setAccessCookie(w http.ResponseWriter, accessToken string) {
+	sameSite := http.SameSiteLaxMode
+	if h.secureCookie {
+		// Cross-origin (frontend on Vercel, backend on Render) requires
+		// SameSite=None so the browser sends the cookie on cross-origin requests.
+		// SameSite=None is only valid when Secure=true (HTTPS).
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "garisha_at",
 		Value:    accessToken,
 		HttpOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Path:     "/",
-		MaxAge:   15 * 60, // 15 minutes, matches JWT_ACCESS_TTL
+		MaxAge:   15 * 60,
 	})
 }
 
-// setRefreshCookie writes the refresh token as an HttpOnly, SameSite=Lax cookie.
-// It is invisible to JavaScript — only sent automatically by the browser to the backend.
+// setRefreshCookie writes the refresh token as an HttpOnly cookie.
 func (h *Handler) setRefreshCookie(w http.ResponseWriter, refreshToken string) {
+	sameSite := http.SameSiteLaxMode
+	if h.secureCookie {
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "garisha_rt",
 		Value:    refreshToken,
 		HttpOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/api/v1/auth",        // only sent to auth endpoints
-		MaxAge:   7 * 24 * 60 * 60,      // 7 days, matches JWT_REFRESH_TTL
+		SameSite: sameSite,
+		Path:     "/api/v1/auth",
+		MaxAge:   7 * 24 * 60 * 60,
 	})
 }
 
@@ -60,12 +68,16 @@ func (h *Handler) setBothCookies(w http.ResponseWriter, accessToken, refreshToke
 
 // clearAuthCookies removes both auth cookies.
 func (h *Handler) clearAuthCookies(w http.ResponseWriter) {
+	sameSite := http.SameSiteLaxMode
+	if h.secureCookie {
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "garisha_at",
 		Value:    "",
 		HttpOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Path:     "/",
 		MaxAge:   -1,
 	})
@@ -74,7 +86,7 @@ func (h *Handler) clearAuthCookies(w http.ResponseWriter) {
 		Value:    "",
 		HttpOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		Path:     "/api/v1/auth",
 		MaxAge:   -1,
 	})

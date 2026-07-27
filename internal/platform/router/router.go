@@ -40,6 +40,7 @@ type Dependencies struct {
 	DB              *pgxpool.Pool  // used by the health check
 	JWTManager      *platformauth.Manager
 	TenantResolver  middleware.TenantResolver
+	AllowedOrigins  []string       // CORS + Google OAuth allowed frontend origins
 	AuthHandler     *auth.Handler
 	TenantsHandler  *tenants.Handler
 	CompanyHandler  *company.Handler
@@ -123,9 +124,13 @@ func New(deps Dependencies) http.Handler {
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):
 	//   RequestID → CORS → Recovery → Logger → mux
+	corsCfg := middleware.DefaultCORSConfig()
+	if len(deps.AllowedOrigins) > 0 {
+		corsCfg.AllowedOrigins = deps.AllowedOrigins
+	}
 	handler := middleware.Logger(deps.Log)(mux)
 	handler = middleware.Recovery(deps.Log)(handler)
-	handler = middleware.CORS(middleware.DefaultCORSConfig())(handler)
+	handler = middleware.CORS(corsCfg)(handler)
 	handler = middleware.RequestID(handler)
 
 	return handler
