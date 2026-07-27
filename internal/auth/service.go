@@ -14,6 +14,7 @@ type Service struct {
 	repo           *Repository
 	jwtManager     *platformauth.Manager
 	googleVerifier *platformauth.GoogleVerifier
+	googleOAuth    *platformauth.GoogleOAuthProvider // server-side redirect flow; may be nil
 	log            *slog.Logger
 }
 
@@ -32,12 +33,21 @@ func NewService(
 	}
 }
 
-// LoginWithGoogle verifies a Google ID token, finds or creates the user for
-// the given tenant, and returns a JWT token pair.
+// WithGoogleOAuth attaches the server-side OAuth2 provider.
+// Call this in main.go when you have the provider configured.
+func (s *Service) WithGoogleOAuth(p *platformauth.GoogleOAuthProvider) {
+	s.googleOAuth = p
+}
+
+// LoginWithGoogle verifies a Google ID token, finds or creates the user,
+// and returns a JWT token pair.
+//
+// tenantID is optional. Pass empty string for consumer/public logins where
+// users don't belong to a specific tenant yet.
 //
 // Flow:
 //  1. Verify the Google ID token with Google's public keys.
-//  2. Look up the user by (tenantID, googleSub).
+//  2. Look up the user by google_sub (scoped to tenant if provided).
 //  3. If not found, create the user automatically (first-time login).
 //  4. Reject inactive users.
 //  5. Issue and return access + refresh tokens.
@@ -71,13 +81,19 @@ func (s *Service) LoginWithGoogle(ctx context.Context, tenantID, idToken string)
 			avatar = &identity.Picture
 		}
 
+		// Only set TenantID if one was provided
+		var tid *string
+		if tenantID != "" {
+			tid = &tenantID
+		}
+
 		user, err = s.repo.Create(ctx, CreateUserParams{
-			TenantID:  &tenantID,
+			TenantID:  tid,
 			GoogleSub: identity.Sub,
 			Email:     identity.Email,
 			Name:      identity.Name,
 			AvatarURL: avatar,
-			Role:      "customer", // default role; admins are promoted separately
+			Role:      "customer",
 		})
 		if err != nil {
 			return nil, nil, apperr.Internal("failed to create user", err)
@@ -159,4 +175,99 @@ func (s *Service) Me(ctx context.Context, userID string) (*User, error) {
 	}
 
 	return user, nil
+}
+
+// GoogleOAuthInitiate validates the requesting origin and returns the Google
+// consent-screen URL. Returns an error if the origin is not in the allowlist.
+func (s *Service) GoogleOAuthInitiate(origin string) (string, error) {
+	if s.googleOAuth == nil {
+		return "", apperr.Internal("Google OAuth provider not configured", nil)
+	}
+
+	if !s.googleOAuth.IsOriginAllowed(origin) {
+		return "", apperr.Forbidden("origin not allowed: " + origin)
+	}
+
+	authURL, err := s.googleOAuth.AuthCodeURL(origin)
+	if err != nil {
+		return "", apperr.Internal("failed to build Google auth URL", err)
+	}
+
+	return authURL, nil
+}
+
+// GoogleOAuthCallback handles the authorization-code callback from Google.
+// It exchanges the code, finds-or-creates the user, and returns a token pair
+// plus the frontend origin to redirect to.
+func (s *Service) GoogleOAuthCallback(ctx context.Context, tenantID, code, state string) (*platformauth.TokenPair, string, error) {
+	if s.googleOAuth == nil {
+		return nil, "", apperr.Internal("Google OAuth provider not configured", nil)
+	}
+
+	identity, origin, err := s.googleOAuth.ExchangeCode(ctx, code, state)
+	if err != nil {
+		s.log.Debug("google oauth callback exchange failed", "error", err)
+		return nil, "", apperr.Unauthorized("google OAuth exchange failed")
+	}
+
+	if !identity.EmailVerified {
+		return nil, "", apperr.Unauthorized("Google account email is not verified")
+	}
+
+	// Find or create the user. tenantID may be empty for consumer logins.
+	user, err := s.repo.FindByGoogleSub(ctx, tenantID, identity.Sub)
+	if err != nil {
+		return nil, "", apperr.Internal("failed to look up user", err)
+	}
+
+	if user == nil {
+		s.log.Info("auto-provisioning new user via OAuth redirect",
+			"email",     identity.Email,
+			"tenant_id", tenantID,
+		)
+
+		var avatar *string
+		if identity.Picture != "" {
+			avatar = &identity.Picture
+		}
+
+		var tid *string
+		if tenantID != "" {
+			tid = &tenantID
+		}
+
+		user, err = s.repo.Create(ctx, CreateUserParams{
+			TenantID:  tid,
+			GoogleSub: identity.Sub,
+			Email:     identity.Email,
+			Name:      identity.Name,
+			AvatarURL: avatar,
+			Role:      "customer",
+		})
+		if err != nil {
+			return nil, "", apperr.Internal("failed to create user", err)
+		}
+	}
+
+	if !user.IsActive {
+		return nil, "", apperr.Forbidden("your account has been suspended")
+	}
+
+	tidStr := ""
+	if user.TenantID != nil {
+		tidStr = *user.TenantID
+	}
+
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, user.Role)
+	if err != nil {
+		return nil, "", apperr.Internal("failed to issue tokens", err)
+	}
+
+	s.log.Info("user logged in via OAuth redirect",
+		"user_id",   user.ID,
+		"tenant_id", tidStr,
+		"origin",    origin,
+	)
+
+	return tokens, origin, nil
 }

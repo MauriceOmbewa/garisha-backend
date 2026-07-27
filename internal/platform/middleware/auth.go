@@ -58,17 +58,24 @@ func RequireClaims(ctx context.Context, w http.ResponseWriter, log *slog.Logger)
 	return claims, true
 }
 
-// bearerToken extracts the raw token string from "Authorization: Bearer <token>".
+// bearerToken extracts the access token from the request.
+// Priority:
+//  1. Authorization: Bearer <token> header  — used by mobile apps and Postman
+//  2. garisha_at HttpOnly cookie             — used by web browsers
 func bearerToken(r *http.Request) (string, error) {
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		return "", apperr.Unauthorized("authorization header is required")
+	// 1. Header (mobile / API clients)
+	if header := r.Header.Get("Authorization"); header != "" {
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+			return "", apperr.Unauthorized("authorization header must be: Bearer <token>")
+		}
+		return parts[1], nil
 	}
 
-	parts := strings.SplitN(header, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-		return "", apperr.Unauthorized("authorization header must be: Bearer <token>")
+	// 2. HttpOnly cookie (web browsers)
+	if cookie, err := r.Cookie("garisha_at"); err == nil && cookie.Value != "" {
+		return cookie.Value, nil
 	}
 
-	return parts[1], nil
+	return "", apperr.Unauthorized("authentication required")
 }

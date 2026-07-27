@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -47,7 +48,12 @@ func Load() (*Config, error) {
 		},
 
 		Google: GoogleConfig{
-			ClientID: getEnv("GOOGLE_CLIENT_ID"),
+			ClientID:        getEnv("GOOGLE_CLIENT_ID"),
+			ClientSecret:    getEnv("GOOGLE_CLIENT_SECRET"),
+			RedirectURL:     getEnv("GOOGLE_REDIRECT_URL"),
+			AllowedOrigins:  splitCSV(getEnv("GOOGLE_ALLOWED_ORIGINS")),
+			AndroidClientID: getEnv("GOOGLE_ANDROID_CLIENT_ID"),
+			IOSClientID:     getEnv("GOOGLE_IOS_CLIENT_ID"),
 		},
 
 		Redis: RedisConfig{
@@ -85,6 +91,22 @@ func Load() (*Config, error) {
 // getEnv returns the value of an environment variable.
 func getEnv(key string) string {
 	return os.Getenv(key)
+}
+
+// splitCSV splits a comma-separated string into a trimmed slice.
+// Returns nil if the value is empty.
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // parseDuration reads key from the environment and parses it as a

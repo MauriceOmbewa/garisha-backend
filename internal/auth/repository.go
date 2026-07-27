@@ -19,19 +19,35 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
-// FindByGoogleSub returns the user matching (tenantID, googleSub).
+// FindByGoogleSub returns the user matching googleSub.
+// tenant_id is optional — pass empty string to find a user regardless of tenant.
 // Returns (nil, nil) when no row is found so the caller can distinguish
 // "not found" from a real database error.
 func (r *Repository) FindByGoogleSub(ctx context.Context, tenantID, googleSub string) (*User, error) {
-	const q = `
-		SELECT id, tenant_id, google_sub, email, name, avatar_url, role,
-		       permissions, is_active, created_at, updated_at
-		FROM   users
-		WHERE  tenant_id  = $1
-		AND    google_sub = $2
-		LIMIT  1`
+	var q string
+	var args []any
 
-	user, err := scanUser(r.db.QueryRow(ctx, q, tenantID, googleSub))
+	if tenantID != "" {
+		q = `
+			SELECT id, tenant_id, google_sub, email, name, avatar_url, role,
+			       permissions, is_active, created_at, updated_at
+			FROM   users
+			WHERE  tenant_id  = $1
+			AND    google_sub = $2
+			LIMIT  1`
+		args = []any{tenantID, googleSub}
+	} else {
+		// No tenant scope — find by google_sub alone (used for consumer login)
+		q = `
+			SELECT id, tenant_id, google_sub, email, name, avatar_url, role,
+			       permissions, is_active, created_at, updated_at
+			FROM   users
+			WHERE  google_sub = $1
+			LIMIT  1`
+		args = []any{googleSub}
+	}
+
+	user, err := scanUser(r.db.QueryRow(ctx, q, args...))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

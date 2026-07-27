@@ -101,7 +101,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	googleVerifier := platformauth.NewGoogleVerifier(cfg.Google.ClientID)
+	// Build the list of trusted Google client IDs (web is always required;
+	// Android and iOS are added when those env vars are set).
+	googleClientIDs := []string{cfg.Google.ClientID}
+	if cfg.Google.AndroidClientID != "" {
+		googleClientIDs = append(googleClientIDs, cfg.Google.AndroidClientID)
+	}
+	if cfg.Google.IOSClientID != "" {
+		googleClientIDs = append(googleClientIDs, cfg.Google.IOSClientID)
+	}
+
+	googleVerifier := platformauth.NewGoogleVerifier(googleClientIDs...)
+
+	// Server-side OAuth2 redirect provider (used by the /google/login + /google/callback flow).
+	// Only enabled when GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URL are set.
+	var googleOAuthProvider *platformauth.GoogleOAuthProvider
+	if cfg.Google.ClientSecret != "" && cfg.Google.RedirectURL != "" {
+		googleOAuthProvider = platformauth.NewGoogleOAuthProvider(
+			cfg.Google.ClientID,
+			cfg.Google.ClientSecret,
+			cfg.Google.RedirectURL,
+			cfg.Google.AllowedOrigins,
+		)
+		log.Info("Google OAuth redirect flow enabled",
+			"redirect_url",    cfg.Google.RedirectURL,
+			"allowed_origins", cfg.Google.AllowedOrigins,
+		)
+	}
 
 	// -------------------------------------------------------------------------
 	// Tenants domain (also serves as the TenantResolver for middleware)
@@ -117,7 +143,11 @@ func main() {
 
 	authRepo    := auth.NewRepository(db)
 	authService := auth.NewService(authRepo, jwtManager, googleVerifier, log)
-	authHandler := auth.NewHandler(authService, log)
+	if googleOAuthProvider != nil {
+		authService.WithGoogleOAuth(googleOAuthProvider)
+	}
+	// secureCookie=true in production (HTTPS), false in local dev (HTTP)
+	authHandler := auth.NewHandler(authService, log, cfg.App.Env != "development")
 
 	// -------------------------------------------------------------------------
 	// Company domain

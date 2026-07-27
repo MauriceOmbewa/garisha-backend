@@ -37,7 +37,12 @@ type JWTConfig struct {
 }
 
 type GoogleConfig struct {
-	ClientID string
+	ClientID        string   // Web OAuth client ID (also used for the redirect flow)
+	ClientSecret    string   // Web OAuth client secret (redirect flow only)
+	RedirectURL     string   // e.g. https://api.example.com/api/v1/auth/google/callback
+	AllowedOrigins  []string // e.g. ["https://www.example.com", "http://localhost:8008"]
+	AndroidClientID string   // Android OAuth client ID (no secret needed)
+	IOSClientID     string   // iOS OAuth client ID (no secret needed)
 }
 
 type RedisConfig struct {
