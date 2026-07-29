@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	apperr "github.com/MauriceOmbewa/garisha-backend/internal/platform/errors"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/middleware"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
@@ -240,8 +241,14 @@ func (h *Handler) GoogleOAuthInitiate(w http.ResponseWriter, r *http.Request) {
 // GoogleOAuthCallback godoc
 // GET /api/v1/auth/google/callback?code=<code>&state=<state>
 // Called by Google after the user grants consent.
-// Sets the refresh token as an HttpOnly cookie, then redirects to the frontend
-// with only the short-lived access token in the URL.
+//
+// Browsers block Set-Cookie on cross-origin redirect responses, so we do NOT
+// set cookies here. Instead we store the token pair in a server-side session
+// store under an opaque one-time code (2 min TTL) and redirect the browser to
+// <origin>/my-yards?code=<one-time-code>.
+//
+// The frontend then POSTs that code to POST /api/v1/auth/exchange, which is a
+// normal CORS JSON response — Set-Cookie works correctly there.
 func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
@@ -251,7 +258,6 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// tenant_id cookie is optional — empty string means no tenant scope.
 	tenantID := ""
 	if cookie, err := r.Cookie("tenant_id"); err == nil {
 		tenantID = cookie.Value
@@ -270,12 +276,56 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Path:   "/api/v1/auth/google/callback",
 	})
 
-	// Set both tokens as HttpOnly cookies — nothing goes in the URL.
-	h.setBothCookies(w, tokens.AccessToken, tokens.RefreshToken)
+	// Store tokens server-side and send an opaque code to the frontend.
+	sessionCode := sessions.put(tokens.AccessToken, tokens.RefreshToken)
 
-	// Redirect clean — no tokens in the URL. The frontend calls /api/v1/auth/me
-	// and the browser sends garisha_at automatically via the cookie.
-	http.Redirect(w, r, origin+"/my-yards", http.StatusTemporaryRedirect)
+	// Redirect to <origin>/my-yards?code=<opaque> — no token in the URL.
+	http.Redirect(w, r, origin+"/my-yards?code="+sessionCode, http.StatusTemporaryRedirect)
+}
+
+// Exchange godoc
+// POST /api/v1/auth/exchange
+// Called by the frontend immediately after the OAuth redirect lands on /my-yards.
+// Accepts the one-time code from the URL, sets HttpOnly cookies in a normal
+// CORS response (not a redirect), and returns the user profile.
+func (h *Handler) Exchange(w http.ResponseWriter, r *http.Request) {
+	type exchangeRequest struct {
+		Code string `json:"code" validate:"required"`
+	}
+
+	var req exchangeRequest
+	if err := validation.DecodeJSON(r, &req); err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	ps, ok := sessions.take(req.Code)
+	if !ok {
+		apperr.Handle(w, r, apperr.Unauthorized("invalid or expired session code"), h.log)
+		return
+	}
+
+	// Set both cookies in this normal (non-redirect) response — browsers
+	// accept Set-Cookie here without the cross-site redirect restriction.
+	h.setBothCookies(w, ps.accessToken, ps.refreshToken)
+
+	// Also fetch and return the user profile so the frontend doesn't need a
+	// second round-trip.
+	claims, err := h.svc.jwtManager.Verify(ps.accessToken, platformauth.TokenTypeAccess)
+	if err != nil {
+		apperr.Handle(w, r, apperr.Internal("failed to verify access token", err), h.log)
+		return
+	}
+
+	user, err := h.svc.Me(r.Context(), claims.UserID)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	response.Success(w, http.StatusOK, "session established", authResponse{
+		User: toUserDTO(user),
+	}, h.log)
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

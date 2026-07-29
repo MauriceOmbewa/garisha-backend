@@ -11,9 +11,10 @@ import (
 // RegisterRoutes mounts the auth endpoints onto mux.
 func RegisterRoutes(mux *http.ServeMux, h *Handler, jwtManager *platformauth.Manager, log *slog.Logger) {
 	// Public — no authentication required.
-	mux.HandleFunc("POST /api/v1/auth/google",  h.GoogleLogin)
-	mux.HandleFunc("POST /api/v1/auth/refresh", h.Refresh)
-	mux.HandleFunc("POST /api/v1/auth/logout",  h.Logout)
+	mux.HandleFunc("POST /api/v1/auth/google",    h.GoogleLogin)
+	mux.HandleFunc("POST /api/v1/auth/refresh",   h.Refresh)
+	mux.HandleFunc("POST /api/v1/auth/logout",    h.Logout)
+	mux.HandleFunc("POST /api/v1/auth/exchange",  h.Exchange) // one-time code → HttpOnly cookies
 
 	// Server-side OAuth2 redirect flow.
 	mux.HandleFunc("GET /api/v1/auth/google/login",    h.GoogleOAuthInitiate)

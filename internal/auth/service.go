@@ -2,19 +2,89 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	apperr "github.com/MauriceOmbewa/garisha-backend/internal/platform/errors"
 )
+
+// ── One-time session code store ───────────────────────────────────────────────
+// After the OAuth callback we cannot reliably set cookies on a redirect response
+// (browsers block cross-site Set-Cookie during redirect chains).
+// Instead we store the token pair server-side under an opaque code for 2 minutes,
+// redirect to the frontend with just the code, and the frontend POSTs the code
+// to /api/v1/auth/exchange — a normal CORS response where Set-Cookie works.
+
+type pendingSession struct {
+	accessToken  string
+	refreshToken string
+	expiresAt    time.Time
+}
+
+type sessionStore struct {
+	mu   sync.Mutex
+	data map[string]pendingSession
+}
+
+func newSessionStore() *sessionStore {
+	s := &sessionStore{data: make(map[string]pendingSession)}
+	go s.gcLoop()
+	return s
+}
+
+func (s *sessionStore) put(accessToken, refreshToken string) string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	code := base64.RawURLEncoding.EncodeToString(b)
+
+	s.mu.Lock()
+	s.data[code] = pendingSession{
+		accessToken:  accessToken,
+		refreshToken: refreshToken,
+		expiresAt:    time.Now().Add(2 * time.Minute),
+	}
+	s.mu.Unlock()
+	return code
+}
+
+func (s *sessionStore) take(code string) (pendingSession, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ps, ok := s.data[code]
+	if !ok || time.Now().After(ps.expiresAt) {
+		delete(s.data, code)
+		return pendingSession{}, false
+	}
+	delete(s.data, code) // one-time use
+	return ps, true
+}
+
+func (s *sessionStore) gcLoop() {
+	for range time.Tick(5 * time.Minute) {
+		s.mu.Lock()
+		for code, ps := range s.data {
+			if time.Now().After(ps.expiresAt) {
+				delete(s.data, code)
+			}
+		}
+		s.mu.Unlock()
+	}
+}
+
+// package-level store shared by Service and Handler
+var sessions = newSessionStore()
 
 // Service implements the authentication business logic.
 type Service struct {
 	repo           *Repository
 	jwtManager     *platformauth.Manager
 	googleVerifier *platformauth.GoogleVerifier
-	googleOAuth    *platformauth.GoogleOAuthProvider // server-side redirect flow; may be nil
+	googleOAuth    *platformauth.GoogleOAuthProvider
 	log            *slog.Logger
 }
 
@@ -34,7 +104,6 @@ func NewService(
 }
 
 // WithGoogleOAuth attaches the server-side OAuth2 provider.
-// Call this in main.go when you have the provider configured.
 func (s *Service) WithGoogleOAuth(p *platformauth.GoogleOAuthProvider) {
 	s.googleOAuth = p
 }
