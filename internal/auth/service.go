@@ -85,10 +85,33 @@ type Service struct {
 	jwtManager     *platformauth.Manager
 	googleVerifier *platformauth.GoogleVerifier
 	googleOAuth    *platformauth.GoogleOAuthProvider
+	yardCreator    YardCreator // injected from tenants.Repository; avoids import cycle
 	log            *slog.Logger
 }
 
-// NewService constructs a Service with all required dependencies.
+// YardCreator is the minimal interface the auth service needs from the
+// tenants domain to create a tenant on behalf of a user.
+// tenants.Repository satisfies this interface.
+type YardCreator interface {
+	CreateTenant(ctx context.Context, p TenantCreateInput) (tenantID string, err error)
+}
+
+// TenantCreateInput is passed to YardCreator.CreateTenant.
+type TenantCreateInput struct {
+	Name  string
+	Slug  string
+	Email string
+	Phone *string
+	Plan  string
+}
+
+// YardCreatorFunc is a function adapter that satisfies the YardCreator interface.
+// Use it in main.go to wire tenantsRepo.Create without an import cycle.
+type YardCreatorFunc func(ctx context.Context, p TenantCreateInput) (string, error)
+
+func (f YardCreatorFunc) CreateTenant(ctx context.Context, p TenantCreateInput) (string, error) {
+	return f(ctx, p)
+}
 func NewService(
 	repo *Repository,
 	jwtManager *platformauth.Manager,
@@ -106,6 +129,12 @@ func NewService(
 // WithGoogleOAuth attaches the server-side OAuth2 provider.
 func (s *Service) WithGoogleOAuth(p *platformauth.GoogleOAuthProvider) {
 	s.googleOAuth = p
+}
+
+// WithYardCreator injects the tenant creator used by CreateYard.
+// Call this in main.go after both repos are constructed.
+func (s *Service) WithYardCreator(yc YardCreator) {
+	s.yardCreator = yc
 }
 
 // LoginWithGoogle verifies a Google ID token, finds or creates the user,
@@ -232,7 +261,72 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*plat
 	return tokens, nil
 }
 
-// Me returns the authenticated user by ID extracted from the JWT claims.
+// CreateYard is the self-service yard registration flow.
+// Any authenticated user who doesn't yet belong to a tenant can call this.
+//
+// Steps:
+//  1. Reject if the user already has a tenant.
+//  2. Create a new tenant record via YardCreator.
+//  3. Assign the user to that tenant with role "owner".
+//  4. Issue new tokens that include the tenant_id in their claims.
+func (s *Service) CreateYard(ctx context.Context, userID string, p CreateYardParams) (*platformauth.TokenPair, *User, error) {
+	if s.yardCreator == nil {
+		return nil, nil, apperr.Internal("yard creator not configured", nil)
+	}
+
+	// 1. Ensure user exists and doesn't already have a tenant.
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, nil, apperr.Internal("failed to look up user", err)
+	}
+	if user == nil {
+		return nil, nil, apperr.NotFound("user")
+	}
+	if user.TenantID != nil {
+		return nil, nil, apperr.Conflict("you already belong to a business — leave it before creating a new one")
+	}
+
+	// 2. Create the tenant.
+	tenantID, err := s.yardCreator.CreateTenant(ctx, TenantCreateInput{
+		Name:  p.Name,
+		Slug:  p.Slug,
+		Email: p.Email,
+		Phone: p.Phone,
+		Plan:  "trial",
+	})
+	if err != nil {
+		return nil, nil, err // already wrapped by tenants.Repository
+	}
+
+	// 3. Assign user to tenant as owner.
+	if err := s.repo.AssignTenant(ctx, userID, tenantID, "owner"); err != nil {
+		return nil, nil, apperr.Internal("failed to assign user to yard", err)
+	}
+
+	// 4. Re-fetch user to get updated tenant_id and role.
+	user, err = s.repo.FindByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, nil, apperr.Internal("failed to reload user after yard creation", err)
+	}
+
+	// 5. Issue fresh tokens with the new tenant_id.
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tenantID, user.Role)
+	if err != nil {
+		return nil, nil, apperr.Internal("failed to issue tokens", err)
+	}
+
+	s.log.Info("yard created", "tenant_id", tenantID, "user_id", userID, "slug", p.Slug)
+	return tokens, user, nil
+}
+
+// CreateYardParams holds what a user provides when creating a new yard.
+type CreateYardParams struct {
+	Name         string
+	Slug         string
+	Email        string
+	Phone        *string
+	BusinessType *string // optional
+}
 func (s *Service) Me(ctx context.Context, userID string) (*User, error) {
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {

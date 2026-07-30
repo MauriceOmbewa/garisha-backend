@@ -111,6 +111,26 @@ type CreateUserParams struct {
 	Role      string
 }
 
+// AssignTenant updates a user's tenant_id and role atomically.
+// Called when a user self-registers a new yard.
+func (r *Repository) AssignTenant(ctx context.Context, userID, tenantID, role string) error {
+	const q = `
+		UPDATE users
+		SET    tenant_id  = $2,
+		       role       = $3,
+		       updated_at = NOW()
+		WHERE  id = $1`
+
+	ct, err := r.db.Exec(ctx, q, userID, tenantID, role)
+	if err != nil {
+		return fmt.Errorf("auth: assign tenant: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("auth: assign tenant: user not found")
+	}
+	return nil
+}
+
 // scanUser reads one row into a User struct.
 func scanUser(row pgx.Row) (*User, error) {
 	var u User

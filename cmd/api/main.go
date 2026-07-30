@@ -146,6 +146,21 @@ func main() {
 	if googleOAuthProvider != nil {
 		authService.WithGoogleOAuth(googleOAuthProvider)
 	}
+	// Wire the tenant creator so auth.Service can create yards without an
+	// import cycle. We use a function adapter that calls tenantsRepo.Create.
+	authService.WithYardCreator(auth.YardCreatorFunc(func(ctx context.Context, p auth.TenantCreateInput) (string, error) {
+		rec, err := tenantsRepo.Create(ctx, tenants.CreateParams{
+			Name:  p.Name,
+			Slug:  p.Slug,
+			Email: p.Email,
+			Phone: p.Phone,
+			Plan:  p.Plan,
+		})
+		if err != nil {
+			return "", err
+		}
+		return rec.ID, nil
+	}))
 	// secureCookie=true in production (HTTPS), false in local dev (HTTP)
 	authHandler := auth.NewHandler(authService, log, cfg.App.Env != "development")
 

@@ -328,7 +328,50 @@ func (h *Handler) Exchange(w http.ResponseWriter, r *http.Request) {
 	}, h.log)
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// CreateYard godoc
+// POST /api/v1/yards
+// Self-service yard registration. Any authenticated user without a tenant
+// can call this to create a new business and become its owner.
+// Returns fresh HttpOnly cookies (new tokens with tenant_id) + the user profile.
+func (h *Handler) CreateYard(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.RequireClaims(r.Context(), w, h.log)
+	if !ok {
+		return
+	}
+
+	type createYardRequest struct {
+		Name         string  `json:"name"          validate:"required,min=2,max=255"`
+		Slug         string  `json:"slug"          validate:"required,min=2,max=100"`
+		Email        string  `json:"email"         validate:"required,email"`
+		Phone        *string `json:"phone"`
+		BusinessType *string `json:"business_type" validate:"omitempty,oneof=car_yard dealership rental service_center mixed"`
+	}
+
+	var req createYardRequest
+	if err := validation.DecodeJSON(r, &req); err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	tokens, user, err := h.svc.CreateYard(r.Context(), claims.UserID, CreateYardParams{
+		Name:         req.Name,
+		Slug:         req.Slug,
+		Email:        req.Email,
+		Phone:        req.Phone,
+		BusinessType: req.BusinessType,
+	})
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	// Issue fresh cookies with the new tenant_id baked in.
+	h.setBothCookies(w, tokens.AccessToken, tokens.RefreshToken)
+
+	response.Success(w, http.StatusCreated, "yard created", authResponse{
+		User: toUserDTO(user),
+	}, h.log)
+}
 
 func toUserDTO(u *User) userDTO {
 	perms := make([]string, 0)

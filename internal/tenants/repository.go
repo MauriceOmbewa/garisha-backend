@@ -92,8 +92,6 @@ func (r *Repository) List(ctx context.Context) ([]*tenant.Record, error) {
 
 	return records, rows.Err()
 }
-
-// Create inserts a new tenant and returns the persisted record.
 func (r *Repository) Create(ctx context.Context, p CreateParams) (*tenant.Record, error) {
 	const q = `
 		INSERT INTO tenants (name, slug, email, phone, logo_url, website_url, plan)

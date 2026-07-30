@@ -14,7 +14,7 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler, jwtManager *platformauth.Man
 	mux.HandleFunc("POST /api/v1/auth/google",    h.GoogleLogin)
 	mux.HandleFunc("POST /api/v1/auth/refresh",   h.Refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout",    h.Logout)
-	mux.HandleFunc("POST /api/v1/auth/exchange",  h.Exchange) // one-time code → HttpOnly cookies
+	mux.HandleFunc("POST /api/v1/auth/exchange",  h.Exchange)
 
 	// Server-side OAuth2 redirect flow.
 	mux.HandleFunc("GET /api/v1/auth/google/login",    h.GoogleOAuthInitiate)
@@ -22,5 +22,6 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler, jwtManager *platformauth.Man
 
 	// Protected — valid access token required.
 	authenticate := middleware.Authenticate(jwtManager, log)
-	mux.Handle("GET /api/v1/auth/me", authenticate(http.HandlerFunc(h.Me)))
+	mux.Handle("GET  /api/v1/auth/me",  authenticate(http.HandlerFunc(h.Me)))
+	mux.Handle("POST /api/v1/yards",    authenticate(http.HandlerFunc(h.CreateYard)))
 }
