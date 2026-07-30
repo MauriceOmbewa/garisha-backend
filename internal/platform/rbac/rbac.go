@@ -18,21 +18,23 @@ package rbac
 type Role string
 
 const (
-	RoleSuperAdmin     Role = "super_admin"
-	RoleAdmin          Role = "admin"
-	RoleAccountant     Role = "accountant"
-	RoleMechanic       Role = "mechanic"
-	RoleSalesAgent     Role = "sales_agent"
-	RoleReceptionist   Role = "receptionist"
-	RoleDriver         Role = "driver"
+	RoleSuperAdmin      Role = "super_admin"
+	RoleOwner           Role = "owner"         // self-registered yard owner — full admin access
+	RoleAdmin           Role = "admin"
+	RoleAccountant      Role = "accountant"
+	RoleMechanic        Role = "mechanic"
+	RoleSalesAgent      Role = "sales_agent"
+	RoleReceptionist    Role = "receptionist"
+	RoleDriver          Role = "driver"
 	RoleCustomerSupport Role = "customer_support"
-	RoleCustomer       Role = "customer"
+	RoleCustomer        Role = "customer"
 )
 
 // All returns every defined role. Useful for validation.
 func All() []Role {
 	return []Role{
 		RoleSuperAdmin,
+		RoleOwner,
 		RoleAdmin,
 		RoleAccountant,
 		RoleMechanic,
@@ -214,9 +216,9 @@ var defaultPermissions = map[Role]permissionSet{
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 // Has reports whether role is granted permission.
-// Super admin is always granted all permissions.
+// Super admin and owner are always granted all permissions.
 func Has(role Role, perm Permission) bool {
-	if role == RoleSuperAdmin {
+	if role == RoleSuperAdmin || role == RoleOwner {
 		return true
 	}
 
