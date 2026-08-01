@@ -10,6 +10,7 @@ import (
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
+	"github.com/MauriceOmbewa/garisha-backend/internal/branches"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/dashboard"
@@ -163,6 +164,14 @@ func main() {
 	}))
 	// secureCookie=true in production (HTTPS), false in local dev (HTTP)
 	authHandler := auth.NewHandler(authService, log, cfg.App.Env != "development")
+
+	// -------------------------------------------------------------------------
+	// Branches domain
+	// -------------------------------------------------------------------------
+
+	branchesRepo    := branches.NewRepository(db)
+	branchesService := branches.NewService(branchesRepo, log)
+	branchesHandler := branches.NewHandler(branchesService, log)
 
 	// -------------------------------------------------------------------------
 	// Company domain
@@ -341,6 +350,7 @@ func main() {
 		AllowedOrigins:        cfg.Google.AllowedOrigins,
 		AuthHandler:           authHandler,
 		TenantsHandler:        tenantsHandler,
+		BranchesHandler:       branchesHandler,
 		CompanyHandler:        companyHandler,
 		UsersHandler:          usersHandler,
 		VehiclesHandler:       vehiclesHandler,

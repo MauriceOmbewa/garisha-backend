@@ -52,6 +52,22 @@ func MustGetTenantID(ctx context.Context) string {
 	return t.ID
 }
 
+// BranchIDKey is the context key under which the optional branch filter is stored.
+type branchKey struct{}
+
+// SetBranchID stores an optional branch_id filter in ctx.
+// Pass empty string to clear it (all-branches view).
+func SetBranchID(ctx context.Context, branchID string) context.Context {
+	return context.WithValue(ctx, branchKey{}, branchID)
+}
+
+// GetBranchID retrieves the optional branch_id filter from ctx.
+// Returns empty string when no branch is selected (aggregate view).
+func GetBranchID(ctx context.Context) string {
+	id, _ := ctx.Value(branchKey{}).(string)
+	return id
+}
+
 // ─── Tenant domain entity ─────────────────────────────────────────────────────
 // The full entity (with all DB columns) lives here so both the middleware
 // and the tenants domain module share the same type without a circular import.

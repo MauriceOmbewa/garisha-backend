@@ -30,7 +30,7 @@ func (s *Service) GetSummary(ctx context.Context) (Summary, error) {
 		userID = claims.UserID
 	}
 
-	summary, err := s.repo.GetSummary(ctx, tenantID, userID)
+	summary, err := s.repo.GetSummary(ctx, tenantID, userID, tenant.GetBranchID(ctx))
 	if err != nil {
 		return Summary{}, apperr.Internal("failed to load dashboard summary", err)
 	}

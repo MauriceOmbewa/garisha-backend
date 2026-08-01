@@ -13,6 +13,7 @@ import (
 
 	"github.com/MauriceOmbewa/garisha-backend/internal/auth"
 	"github.com/MauriceOmbewa/garisha-backend/internal/audit"
+	"github.com/MauriceOmbewa/garisha-backend/internal/branches"
 	"github.com/MauriceOmbewa/garisha-backend/internal/company"
 	"github.com/MauriceOmbewa/garisha-backend/internal/customers"
 	"github.com/MauriceOmbewa/garisha-backend/internal/dashboard"
@@ -43,6 +44,7 @@ type Dependencies struct {
 	AllowedOrigins  []string       // CORS + Google OAuth allowed frontend origins
 	AuthHandler     *auth.Handler
 	TenantsHandler  *tenants.Handler
+	BranchesHandler *branches.Handler
 	CompanyHandler  *company.Handler
 	UsersHandler    *users.Handler
 	VehiclesHandler  *vehicles.Handler
@@ -73,8 +75,11 @@ func New(deps Dependencies) http.Handler {
 	// /auth/me only needs authentication, not a tenant header.
 	auth.RegisterRoutes(mux, deps.AuthHandler, deps.JWTManager, deps.Log)
 
-	// ── Super-admin tenant management (no tenant header required) ─────────────
+	// ── Super-admin tenant management ─────────────────────────────────────────
 	tenants.RegisterRoutes(mux, deps.TenantsHandler, deps.JWTManager, deps.Log)
+
+	// ── Branch management (tenant-scoped) ─────────────────────────────────────
+	branches.RegisterRoutes(mux, deps.BranchesHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
 
 	// ── Company profile (tenant-scoped) ───────────────────────────────────────
 	company.RegisterRoutes(mux, deps.CompanyHandler, deps.JWTManager, deps.TenantResolver, deps.Log)

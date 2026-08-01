@@ -48,6 +48,7 @@ func DefaultCORSConfig() CORSConfig {
 			"Content-Type",
 			"X-Request-ID",
 			"X-Tenant-ID",
+			"X-Branch-ID",
 		},
 		AllowCredentials: true, // required for HttpOnly cookie auth
 	}

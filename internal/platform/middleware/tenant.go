@@ -62,6 +62,13 @@ func ResolveTenant(resolver TenantResolver, log *slog.Logger) func(http.Handler)
 			}
 
 			ctx := tenant.SetTenant(r.Context(), t)
+
+			// Optional: X-Branch-ID scopes queries to a specific branch.
+			// When absent the backend returns data across all branches.
+			if branchID := r.Header.Get("X-Branch-ID"); branchID != "" {
+				ctx = tenant.SetBranchID(ctx, branchID)
+			}
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
