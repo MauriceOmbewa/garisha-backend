@@ -76,6 +76,16 @@ type UpdateInput struct {
 
 // ── Service methods ───────────────────────────────────────────────────────────
 
+// ListEnriched returns bookings joined with customer and vehicle data.
+func (s *Service) ListEnriched(ctx context.Context, f ListFilters) ([]*BookingEnriched, error) {
+	tenantID := tenant.MustGetTenantID(ctx)
+	bookings, err := s.repo.ListEnriched(ctx, tenantID, f)
+	if err != nil {
+		return nil, apperr.Internal("failed to list bookings", err)
+	}
+	return bookings, nil
+}
+
 // List returns bookings for the tenant in ctx, optionally filtered.
 func (s *Service) List(ctx context.Context, f ListFilters) ([]*Booking, error) {
 	tenantID := tenant.MustGetTenantID(ctx)

@@ -34,6 +34,9 @@ func RegisterRoutes(
 	// Availability check — booking.view is sufficient (read-only probe).
 	mux.Handle("POST   /api/v1/hire/availability",            base(canView)(http.HandlerFunc(h.CheckAvailability)))
 
+	// Enriched booking list (includes customer name + vehicle details).
+	mux.Handle("GET    /api/v1/hire/bookings/enriched",       base(canView)(http.HandlerFunc(h.ListEnriched)))
+
 	// Booking CRUD.
 	mux.Handle("GET    /api/v1/hire/bookings",                base(canView)(http.HandlerFunc(h.List)))
 	mux.Handle("POST   /api/v1/hire/bookings",                base(canCreate)(http.HandlerFunc(h.Create)))

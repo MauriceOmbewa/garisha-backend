@@ -170,7 +170,63 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "booking retrieved", toDTO(b), h.log)
 }
 
-// CheckAvailability godoc
+type bookingEnrichedDTO struct {
+	bookingDTO
+	CustomerName string  `json:"customer_name"`
+	VehicleMake  string  `json:"vehicle_make"`
+	VehicleModel string  `json:"vehicle_model"`
+	VehiclePlate *string `json:"vehicle_plate"`
+	VehicleType  string  `json:"vehicle_type"`
+}
+
+// ListEnriched godoc
+// GET /api/v1/hire/bookings/enriched[?status=&from=&to=]
+// Returns bookings with customer name and vehicle details joined in.
+func (h *Handler) ListEnriched(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	var f ListFilters
+	if s := q.Get("status"); s != "" {
+		f.Status = &s
+	}
+	if v := q.Get("vehicle_id"); v != "" {
+		f.VehicleID = &v
+	}
+	if c := q.Get("customer_id"); c != "" {
+		f.CustomerID = &c
+	}
+	if from := q.Get("from"); from != "" {
+		t, err := time.Parse("2006-01-02", from)
+		if err == nil {
+			f.FromDate = &t
+		}
+	}
+	if to := q.Get("to"); to != "" {
+		t, err := time.Parse("2006-01-02", to)
+		if err == nil {
+			f.ToDate = &t
+		}
+	}
+
+	bookings, err := h.svc.ListEnriched(r.Context(), f)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	dtos := make([]bookingEnrichedDTO, 0, len(bookings))
+	for _, b := range bookings {
+		dtos = append(dtos, bookingEnrichedDTO{
+			bookingDTO:   toDTO(&b.Booking),
+			CustomerName: b.CustomerName,
+			VehicleMake:  b.VehicleMake,
+			VehicleModel: b.VehicleModel,
+			VehiclePlate: b.VehiclePlate,
+			VehicleType:  b.VehicleType,
+		})
+	}
+	response.Success(w, http.StatusOK, "bookings retrieved", dtos, h.log)
+}
 // POST /api/v1/hire/availability
 // Returns whether the vehicle is free for the given date range.
 func (h *Handler) CheckAvailability(w http.ResponseWriter, r *http.Request) {

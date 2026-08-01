@@ -91,7 +91,95 @@ func (r *Repository) List(ctx context.Context, tenantID string, f ListFilters) (
 	return result, rows.Err()
 }
 
-// FindByID returns a booking by UUID.  Returns (nil, nil) when not found.
+// ── Enriched list ─────────────────────────────────────────────────────────────
+
+// BookingEnriched augments a Booking with denormalised customer and vehicle
+// fields so the frontend doesn't need extra round-trips.
+type BookingEnriched struct {
+	Booking
+	CustomerName string
+	VehicleMake  string
+	VehicleModel string
+	VehiclePlate *string
+	VehicleType  string
+}
+
+// ListEnriched returns bookings joined with customer and vehicle data.
+func (r *Repository) ListEnriched(ctx context.Context, tenantID string, f ListFilters) ([]*BookingEnriched, error) {
+	args := []any{tenantID}
+	conditions := []string{"hb.tenant_id = $1"}
+
+	if f.Status != nil {
+		args = append(args, *f.Status)
+		conditions = append(conditions, fmt.Sprintf("hb.status = $%d", len(args)))
+	}
+	if f.VehicleID != nil {
+		args = append(args, *f.VehicleID)
+		conditions = append(conditions, fmt.Sprintf("hb.vehicle_id = $%d", len(args)))
+	}
+	if f.CustomerID != nil {
+		args = append(args, *f.CustomerID)
+		conditions = append(conditions, fmt.Sprintf("hb.customer_id = $%d", len(args)))
+	}
+	if f.FromDate != nil {
+		args = append(args, *f.FromDate)
+		conditions = append(conditions, fmt.Sprintf("hb.start_date >= $%d", len(args)))
+	}
+	if f.ToDate != nil {
+		args = append(args, *f.ToDate)
+		conditions = append(conditions, fmt.Sprintf("hb.start_date <= $%d", len(args)))
+	}
+
+	q := `SELECT hb.id, hb.tenant_id, hb.vehicle_id, hb.customer_id,
+	             hb.start_date, hb.end_date, hb.pickup_time, hb.return_time,
+	             hb.actual_start, hb.actual_end,
+	             hb.daily_rate, hb.total_days, hb.total_amount,
+	             hb.deposit_amount, hb.discount_amount, hb.final_amount,
+	             hb.status,
+	             hb.pickup_location, hb.return_location,
+	             hb.mileage_out, hb.mileage_in,
+	             hb.created_by, hb.notes, hb.created_at, hb.updated_at,
+	             COALESCE(c.full_name, '') AS customer_name,
+	             COALESCE(v.make, '')      AS vehicle_make,
+	             COALESCE(v.model, '')     AS vehicle_model,
+	             v.plate_no               AS vehicle_plate,
+	             COALESCE(v.vehicle_type, '') AS vehicle_type
+	      FROM   hire_bookings hb
+	      LEFT   JOIN customers c ON c.id = hb.customer_id
+	      LEFT   JOIN vehicles  v ON v.id = hb.vehicle_id
+	      WHERE  ` + strings.Join(conditions, " AND ") + `
+	      ORDER  BY hb.start_date DESC, hb.created_at DESC`
+
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("hire: list enriched: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*BookingEnriched
+	for rows.Next() {
+		var be BookingEnriched
+		b := &be.Booking
+		err := rows.Scan(
+			&b.ID, &b.TenantID, &b.VehicleID, &b.CustomerID,
+			&b.StartDate, &b.EndDate, &b.PickupTime, &b.ReturnTime,
+			&b.ActualStart, &b.ActualEnd,
+			&b.DailyRate, &b.TotalDays, &b.TotalAmount,
+			&b.DepositAmount, &b.DiscountAmount, &b.FinalAmount,
+			&b.Status,
+			&b.PickupLocation, &b.ReturnLocation,
+			&b.MileageOut, &b.MileageIn,
+			&b.CreatedBy, &b.Notes, &b.CreatedAt, &b.UpdatedAt,
+			&be.CustomerName, &be.VehicleMake, &be.VehicleModel,
+			&be.VehiclePlate, &be.VehicleType,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("hire: list enriched scan: %w", err)
+		}
+		result = append(result, &be)
+	}
+	return result, rows.Err()
+}
 func (r *Repository) FindByID(ctx context.Context, id string) (*Booking, error) {
 	const q = `
 		SELECT id, tenant_id, vehicle_id, customer_id,
