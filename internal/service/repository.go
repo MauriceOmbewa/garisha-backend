@@ -111,6 +111,104 @@ func (r *Repository) List(ctx context.Context, tenantID string, f ListFilters) (
 	return result, rows.Err()
 }
 
+// ── Enriched list ─────────────────────────────────────────────────────────────
+
+// JobEnriched augments a Job with denormalised customer and vehicle fields.
+type JobEnriched struct {
+	Job
+	CustomerName string
+	VehicleMake  string
+	VehicleModel string
+	VehiclePlate *string
+	VehicleType  string
+}
+
+// ListEnriched returns service jobs joined with customer and vehicle data.
+func (r *Repository) ListEnriched(ctx context.Context, tenantID string, f ListFilters) ([]*JobEnriched, error) {
+	args := []any{tenantID}
+	conditions := []string{"sj.tenant_id = $1"}
+
+	if f.Status != nil {
+		args = append(args, *f.Status)
+		conditions = append(conditions, fmt.Sprintf("sj.status = $%d", len(args)))
+	}
+	if f.VehicleID != nil {
+		args = append(args, *f.VehicleID)
+		conditions = append(conditions, fmt.Sprintf("sj.vehicle_id = $%d", len(args)))
+	}
+	if f.CustomerID != nil {
+		args = append(args, *f.CustomerID)
+		conditions = append(conditions, fmt.Sprintf("sj.customer_id = $%d", len(args)))
+	}
+	if f.MechanicID != nil {
+		args = append(args, *f.MechanicID)
+		conditions = append(conditions, fmt.Sprintf("sj.mechanic_id = $%d", len(args)))
+	}
+	if f.JobType != nil {
+		args = append(args, *f.JobType)
+		conditions = append(conditions, fmt.Sprintf("sj.job_type = $%d", len(args)))
+	}
+	if f.FromDate != nil {
+		args = append(args, *f.FromDate)
+		conditions = append(conditions, fmt.Sprintf("sj.received_at >= $%d", len(args)))
+	}
+	if f.ToDate != nil {
+		args = append(args, *f.ToDate)
+		conditions = append(conditions, fmt.Sprintf("sj.received_at <= $%d", len(args)))
+	}
+
+	q := `SELECT
+		sj.id, sj.tenant_id, sj.vehicle_id, sj.customer_id, sj.mechanic_id,
+		sj.job_type, sj.status,
+		sj.received_at, sj.due_date, sj.completed_at,
+		sj.mileage_in,
+		sj.labour_total, sj.parts_total, sj.total_amount, sj.discount_amount, sj.final_amount,
+		sj.created_by, sj.customer_notes, sj.internal_notes,
+		sj.created_at, sj.updated_at,
+		COALESCE(c.full_name, '') AS customer_name,
+		COALESCE(v.make, '')      AS vehicle_make,
+		COALESCE(v.model, '')     AS vehicle_model,
+		v.plate_no                AS vehicle_plate,
+		COALESCE(v.vehicle_type, '') AS vehicle_type
+	FROM   service_jobs sj
+	LEFT   JOIN customers c ON c.id = sj.customer_id
+	LEFT   JOIN vehicles  v ON v.id = sj.vehicle_id
+	WHERE  ` + strings.Join(conditions, " AND ") + `
+	ORDER  BY sj.received_at DESC, sj.created_at DESC`
+
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("service: list enriched: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*JobEnriched
+	for rows.Next() {
+		var je JobEnriched
+		j := &je.Job
+		var jobType, status string
+		err := rows.Scan(
+			&j.ID, &j.TenantID, &j.VehicleID, &j.CustomerID, &j.MechanicID,
+			&jobType, &status,
+			&j.ReceivedAt, &j.DueDate, &j.CompletedAt,
+			&j.MileageIn,
+			&j.LabourTotal, &j.PartsTotal, &j.TotalAmount, &j.DiscountAmount, &j.FinalAmount,
+			&j.CreatedBy, &j.CustomerNotes, &j.InternalNotes,
+			&j.CreatedAt, &j.UpdatedAt,
+			&je.CustomerName, &je.VehicleMake, &je.VehicleModel,
+			&je.VehiclePlate, &je.VehicleType,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("service: list enriched scan: %w", err)
+		}
+		j.JobType = JobType(jobType)
+		j.Status = JobStatus(status)
+		j.Items = []*JobItem{}
+		result = append(result, &je)
+	}
+	return result, rows.Err()
+}
+
 // FindByID returns a job by UUID with its items.  Returns (nil, nil) when not found.
 func (r *Repository) FindByID(ctx context.Context, id string) (*Job, error) {
 	q := `SELECT ` + jobCols + `

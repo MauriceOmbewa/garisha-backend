@@ -33,6 +33,7 @@ func RegisterRoutes(
 
 	// ── Service Jobs ──────────────────────────────────────────────────────────
 	mux.Handle("GET    /api/v1/service/jobs",                      base(canView)(http.HandlerFunc(h.List)))
+	mux.Handle("GET    /api/v1/service/jobs/enriched",             base(canView)(http.HandlerFunc(h.ListEnriched)))
 	mux.Handle("POST   /api/v1/service/jobs",                      base(canCreate)(http.HandlerFunc(h.Create)))
 	mux.Handle("GET    /api/v1/service/jobs/{id}",                 base(canView)(http.HandlerFunc(h.Get)))
 	mux.Handle("PATCH  /api/v1/service/jobs/{id}",                 base(canUpdate)(http.HandlerFunc(h.Update)))

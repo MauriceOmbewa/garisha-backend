@@ -75,6 +75,16 @@ type UpdateItemInput struct {
 
 // ── Job service methods ───────────────────────────────────────────────────────
 
+// ListEnriched returns service jobs joined with customer and vehicle data.
+func (s *Service) ListEnriched(ctx context.Context, f ListFilters) ([]*JobEnriched, error) {
+	tenantID := tenant.MustGetTenantID(ctx)
+	jobs, err := s.repo.ListEnriched(ctx, tenantID, f)
+	if err != nil {
+		return nil, apperr.Internal("failed to list service jobs", err)
+	}
+	return jobs, nil
+}
+
 // List returns service jobs for the tenant in ctx, optionally filtered.
 func (s *Service) List(ctx context.Context, f ListFilters) ([]*Job, error) {
 	tenantID := tenant.MustGetTenantID(ctx)

@@ -117,9 +117,66 @@ type itemDTO struct {
 	UpdatedAt   string  `json:"updated_at"`
 }
 
-// ─── Job handlers ─────────────────────────────────────────────────────────────
+type jobEnrichedDTO struct {
+	jobDTO
+	CustomerName string  `json:"customer_name"`
+	VehicleMake  string  `json:"vehicle_make"`
+	VehicleModel string  `json:"vehicle_model"`
+	VehiclePlate *string `json:"vehicle_plate"`
+	VehicleType  string  `json:"vehicle_type"`
+}
 
-// List godoc
+// ListEnriched godoc
+// GET /api/v1/service/jobs/enriched
+func (h *Handler) ListEnriched(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	var f ListFilters
+	if s := q.Get("status"); s != "" {
+		f.Status = &s
+	}
+	if v := q.Get("vehicle_id"); v != "" {
+		f.VehicleID = &v
+	}
+	if c := q.Get("customer_id"); c != "" {
+		f.CustomerID = &c
+	}
+	if m := q.Get("mechanic_id"); m != "" {
+		f.MechanicID = &m
+	}
+	if jt := q.Get("job_type"); jt != "" {
+		f.JobType = &jt
+	}
+	if from := q.Get("from"); from != "" {
+		if t, err := time.Parse(time.RFC3339, from); err == nil {
+			f.FromDate = &t
+		}
+	}
+	if to := q.Get("to"); to != "" {
+		if t, err := time.Parse(time.RFC3339, to); err == nil {
+			f.ToDate = &t
+		}
+	}
+
+	jobs, err := h.svc.ListEnriched(r.Context(), f)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	dtos := make([]jobEnrichedDTO, 0, len(jobs))
+	for _, j := range jobs {
+		dtos = append(dtos, jobEnrichedDTO{
+			jobDTO:       toJobDTO(&j.Job),
+			CustomerName: j.CustomerName,
+			VehicleMake:  j.VehicleMake,
+			VehicleModel: j.VehicleModel,
+			VehiclePlate: j.VehiclePlate,
+			VehicleType:  j.VehicleType,
+		})
+	}
+	response.Success(w, http.StatusOK, "service jobs retrieved", dtos, h.log)
+}
 // GET /api/v1/service/jobs[?status=pending&vehicle_id=...&customer_id=...&mechanic_id=...&job_type=...&from=...&to=...]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
