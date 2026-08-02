@@ -92,6 +92,94 @@ func (r *Repository) List(ctx context.Context, tenantID string, f ListFilters) (
 	return result, rows.Err()
 }
 
+// ── Enriched list ─────────────────────────────────────────────────────────────
+
+// SaleEnriched augments a Sale with denormalised customer and vehicle fields.
+type SaleEnriched struct {
+	Sale
+	CustomerName string
+	VehicleMake  string
+	VehicleModel string
+	VehiclePlate *string
+	VehicleType  string
+	VehicleYear  int
+}
+
+// ListEnriched returns sales joined with customer and vehicle data.
+func (r *Repository) ListEnriched(ctx context.Context, tenantID string, f ListFilters) ([]*SaleEnriched, error) {
+	args := []any{tenantID}
+	conditions := []string{"vs.tenant_id = $1"}
+
+	if f.Status != nil {
+		args = append(args, *f.Status)
+		conditions = append(conditions, fmt.Sprintf("vs.status = $%d", len(args)))
+	}
+	if f.VehicleID != nil {
+		args = append(args, *f.VehicleID)
+		conditions = append(conditions, fmt.Sprintf("vs.vehicle_id = $%d", len(args)))
+	}
+	if f.CustomerID != nil {
+		args = append(args, *f.CustomerID)
+		conditions = append(conditions, fmt.Sprintf("vs.customer_id = $%d", len(args)))
+	}
+	if f.FromDate != nil {
+		args = append(args, *f.FromDate)
+		conditions = append(conditions, fmt.Sprintf("vs.sale_date >= $%d", len(args)))
+	}
+	if f.ToDate != nil {
+		args = append(args, *f.ToDate)
+		conditions = append(conditions, fmt.Sprintf("vs.sale_date <= $%d", len(args)))
+	}
+
+	q := `SELECT
+		vs.id, vs.tenant_id, vs.vehicle_id, vs.customer_id,
+		vs.asking_price, vs.agreed_price, vs.deposit_amount, vs.discount_amount, vs.final_amount,
+		vs.payment_method, vs.payment_terms,
+		vs.sale_date, vs.handover_at,
+		vs.status,
+		vs.invoice_number, vs.contract_ref,
+		vs.created_by, vs.notes, vs.created_at, vs.updated_at,
+		COALESCE(c.full_name, '') AS customer_name,
+		COALESCE(v.make, '')      AS vehicle_make,
+		COALESCE(v.model, '')     AS vehicle_model,
+		v.plate_no                AS vehicle_plate,
+		COALESCE(v.vehicle_type, '') AS vehicle_type,
+		COALESCE(v.year, 0)       AS vehicle_year
+	FROM   vehicle_sales vs
+	LEFT   JOIN customers c ON c.id = vs.customer_id
+	LEFT   JOIN vehicles  v ON v.id = vs.vehicle_id
+	WHERE  ` + strings.Join(conditions, " AND ") + `
+	ORDER  BY vs.sale_date DESC, vs.created_at DESC`
+
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sales: list enriched: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*SaleEnriched
+	for rows.Next() {
+		var se SaleEnriched
+		s := &se.Sale
+		err := rows.Scan(
+			&s.ID, &s.TenantID, &s.VehicleID, &s.CustomerID,
+			&s.AskingPrice, &s.AgreedPrice, &s.DepositAmount, &s.DiscountAmount, &s.FinalAmount,
+			&s.PaymentMethod, &s.PaymentTerms,
+			&s.SaleDate, &s.HandoverAt,
+			&s.Status,
+			&s.InvoiceNumber, &s.ContractRef,
+			&s.CreatedBy, &s.Notes, &s.CreatedAt, &s.UpdatedAt,
+			&se.CustomerName, &se.VehicleMake, &se.VehicleModel,
+			&se.VehiclePlate, &se.VehicleType, &se.VehicleYear,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("sales: list enriched scan: %w", err)
+		}
+		result = append(result, &se)
+	}
+	return result, rows.Err()
+}
+
 // FindByID returns a sale by UUID.  Returns (nil, nil) when not found.
 func (r *Repository) FindByID(ctx context.Context, id string) (*Sale, error) {
 	q := `SELECT ` + selectCols + `

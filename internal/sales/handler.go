@@ -98,8 +98,62 @@ type saleDTO struct {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-// List godoc
-// GET /api/v1/sales[?status=pending&vehicle_id=...&customer_id=...&from=YYYY-MM-DD&to=YYYY-MM-DD]
+type saleEnrichedDTO struct {
+	saleDTO
+	CustomerName string  `json:"customer_name"`
+	VehicleMake  string  `json:"vehicle_make"`
+	VehicleModel string  `json:"vehicle_model"`
+	VehiclePlate *string `json:"vehicle_plate"`
+	VehicleType  string  `json:"vehicle_type"`
+	VehicleYear  int     `json:"vehicle_year"`
+}
+
+// ListEnriched godoc
+// GET /api/v1/sales/enriched[?status=&from=&to=]
+func (h *Handler) ListEnriched(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	var f ListFilters
+	if s := q.Get("status"); s != "" {
+		f.Status = &s
+	}
+	if v := q.Get("vehicle_id"); v != "" {
+		f.VehicleID = &v
+	}
+	if c := q.Get("customer_id"); c != "" {
+		f.CustomerID = &c
+	}
+	if from := q.Get("from"); from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			f.FromDate = &t
+		}
+	}
+	if to := q.Get("to"); to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			f.ToDate = &t
+		}
+	}
+
+	sales, err := h.svc.ListEnriched(r.Context(), f)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	dtos := make([]saleEnrichedDTO, 0, len(sales))
+	for _, s := range sales {
+		dtos = append(dtos, saleEnrichedDTO{
+			saleDTO:      toDTO(&s.Sale),
+			CustomerName: s.CustomerName,
+			VehicleMake:  s.VehicleMake,
+			VehicleModel: s.VehicleModel,
+			VehiclePlate: s.VehiclePlate,
+			VehicleType:  s.VehicleType,
+			VehicleYear:  s.VehicleYear,
+		})
+	}
+	response.Success(w, http.StatusOK, "sales retrieved", dtos, h.log)
+}
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 

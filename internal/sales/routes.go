@@ -32,6 +32,7 @@ func RegisterRoutes(
 	}
 
 	mux.Handle("GET    /api/v1/sales",              base(canView)(http.HandlerFunc(h.List)))
+	mux.Handle("GET    /api/v1/sales/enriched",     base(canView)(http.HandlerFunc(h.ListEnriched)))
 	mux.Handle("POST   /api/v1/sales",              base(canCreate)(http.HandlerFunc(h.Create)))
 	mux.Handle("GET    /api/v1/sales/{id}",         base(canView)(http.HandlerFunc(h.Get)))
 	mux.Handle("PATCH  /api/v1/sales/{id}",         base(canUpdate)(http.HandlerFunc(h.Update)))

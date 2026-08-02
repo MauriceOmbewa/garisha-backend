@@ -73,6 +73,16 @@ type UpdateInput struct {
 
 // ── Service methods ───────────────────────────────────────────────────────────
 
+// ListEnriched returns sales joined with customer and vehicle data.
+func (s *Service) ListEnriched(ctx context.Context, f ListFilters) ([]*SaleEnriched, error) {
+	tenantID := tenant.MustGetTenantID(ctx)
+	sales, err := s.repo.ListEnriched(ctx, tenantID, f)
+	if err != nil {
+		return nil, apperr.Internal("failed to list sales", err)
+	}
+	return sales, nil
+}
+
 // List returns sales for the tenant in ctx, optionally filtered.
 func (s *Service) List(ctx context.Context, f ListFilters) ([]*Sale, error) {
 	tenantID := tenant.MustGetTenantID(ctx)
