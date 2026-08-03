@@ -10,18 +10,16 @@ package users
 import "time"
 
 // User is the full user entity as managed by this domain.
-// It mirrors the auth.User struct intentionally — both map to the same DB
-// row. Having a local type avoids a cross-package import and lets us add
-// user-management-specific methods here without polluting the auth package.
 type User struct {
 	ID          string
-	TenantID    *string  // nil only for super-admins
+	TenantID    *string
+	BranchID    *string  // nil = cross-branch access (owner/admin/accountant)
 	GoogleSub   string
 	Email       string
 	Name        string
 	AvatarURL   *string
 	Role        string
-	Permissions []string // per-user permission overrides on top of role defaults
+	Permissions []string
 	IsActive    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

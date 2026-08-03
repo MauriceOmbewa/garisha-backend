@@ -63,9 +63,16 @@ func ResolveTenant(resolver TenantResolver, log *slog.Logger) func(http.Handler)
 
 			ctx := tenant.SetTenant(r.Context(), t)
 
-			// Optional: X-Branch-ID scopes queries to a specific branch.
-			// When absent the backend returns data across all branches.
-			if branchID := r.Header.Get("X-Branch-ID"); branchID != "" {
+			// Branch scope: prefer X-Branch-ID header (for full-access roles).
+			// If the user's JWT carries a branch_id (restricted role), enforce
+			// it regardless of the header — a branch-scoped user cannot see
+			// another branch's data by sending a different header.
+			claims := GetClaims(ctx)
+			if claims != nil && claims.BranchID != "" {
+				// JWT-enforced branch scope — override any header
+				ctx = tenant.SetBranchID(ctx, claims.BranchID)
+			} else if branchID := r.Header.Get("X-Branch-ID"); branchID != "" {
+				// Full-access role — respect the chosen branch from the header
 				ctx = tenant.SetBranchID(ctx, branchID)
 			}
 

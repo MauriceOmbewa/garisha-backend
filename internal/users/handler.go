@@ -26,6 +26,10 @@ type assignRoleRequest struct {
 	Role string `json:"role" validate:"required"`
 }
 
+type assignBranchRequest struct {
+	BranchID string `json:"branch_id"` // empty string = remove branch assignment
+}
+
 type updatePermissionsRequest struct {
 	// Permissions is the complete replacement set of permission overrides.
 	// Send an empty array to clear all overrides.
@@ -36,6 +40,7 @@ type updatePermissionsRequest struct {
 type userDTO struct {
 	ID          string   `json:"id"`
 	TenantID    *string  `json:"tenant_id"`
+	BranchID    *string  `json:"branch_id"`
 	Email       string   `json:"email"`
 	Name        string   `json:"name"`
 	AvatarURL   *string  `json:"avatar_url"`
@@ -79,6 +84,27 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "user retrieved", toDTO(u), h.log)
+}
+
+// AssignBranch godoc
+// PATCH /api/v1/users/{id}/branch
+// Sets (or clears) the branch for a user.
+func (h *Handler) AssignBranch(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req assignBranchRequest
+	if err := validation.DecodeJSON(r, &req); err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	u, err := h.svc.AssignBranch(r.Context(), id, req.BranchID)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	response.Success(w, http.StatusOK, "user branch updated", toDTO(u), h.log)
 }
 
 // AssignRole godoc
@@ -179,6 +205,7 @@ func toDTO(u *User) userDTO {
 	return userDTO{
 		ID:          u.ID,
 		TenantID:    u.TenantID,
+		BranchID:    u.BranchID,
 		Email:       u.Email,
 		Name:        u.Name,
 		AvatarURL:   u.AvatarURL,

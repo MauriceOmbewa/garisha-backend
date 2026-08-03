@@ -10,6 +10,7 @@ import (
 type User struct {
 	ID          string
 	TenantID    *string // nil for super-admins
+	BranchID    *string // nil = cross-branch access (owner/admin); set = branch-restricted
 	GoogleSub   string
 	Email       string
 	Name        string

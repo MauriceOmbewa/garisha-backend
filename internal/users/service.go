@@ -215,3 +215,32 @@ func isKnownPermission(p string) bool {
 	}
 	return false
 }
+
+// AssignBranch sets (or clears) the branch assignment for a user.
+// Pass branchID = "" to remove the assignment and restore cross-branch access.
+// Only owner/admin may assign branches; branch-scoped users cannot be moved
+// to a branch outside their tenant.
+func (s *Service) AssignBranch(ctx context.Context, id, branchID string) (*User, error) {
+	tenantID := tenant.MustGetTenantID(ctx)
+
+	existing, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, apperr.Internal("failed to get user", err)
+	}
+	if existing == nil || !belongsToTenant(existing, tenantID) {
+		return nil, apperr.NotFound("user")
+	}
+
+	var bid *string
+	if branchID != "" {
+		bid = &branchID
+	}
+
+	u, err := s.repo.AssignBranch(ctx, id, bid)
+	if err != nil {
+		return nil, apperr.Internal("failed to assign branch", err)
+	}
+
+	s.log.Info("user branch assigned", "user_id", id, "branch_id", branchID, "tenant_id", tenantID)
+	return u, nil
+}

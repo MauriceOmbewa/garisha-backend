@@ -50,6 +50,9 @@ func RegisterRoutes(
 	mux.Handle("PATCH /api/v1/users/{id}/role",
 		base(canUpdate)(http.HandlerFunc(h.AssignRole)))
 
+	mux.Handle("PATCH /api/v1/users/{id}/branch",
+		base(canUpdate)(http.HandlerFunc(h.AssignBranch)))
+
 	mux.Handle("POST /api/v1/users/{id}/activate",
 		base(canUpdate)(http.HandlerFunc(h.Activate)))
 

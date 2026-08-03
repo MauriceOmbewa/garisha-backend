@@ -113,6 +113,7 @@ type authResponse struct {
 type userDTO struct {
 	ID          string   `json:"id"`
 	TenantID    *string  `json:"tenant_id"`
+	BranchID    *string  `json:"branch_id"`
 	Email       string   `json:"email"`
 	Name        string   `json:"name"`
 	AvatarURL   *string  `json:"avatar_url"`
@@ -382,6 +383,7 @@ func toUserDTO(u *User) userDTO {
 	return userDTO{
 		ID:          u.ID,
 		TenantID:    u.TenantID,
+		BranchID:    u.BranchID,
 		Email:       u.Email,
 		Name:        u.Name,
 		AvatarURL:   u.AvatarURL,

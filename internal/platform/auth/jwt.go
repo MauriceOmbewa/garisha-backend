@@ -26,6 +26,7 @@ const (
 type Claims struct {
 	UserID   string    `json:"uid"`
 	TenantID string    `json:"tid"`
+	BranchID string    `json:"bid,omitempty"` // empty = cross-branch access
 	Role     string    `json:"role"`
 	Type     TokenType `json:"type"`
 	jwt.RegisteredClaims
@@ -58,15 +59,15 @@ func NewManager(secret string, accessTTL, refreshTTL time.Duration) (*Manager, e
 	}, nil
 }
 
-// IssueTokenPair signs and returns a fresh access + refresh token pair for
-// the given identity.
-func (m *Manager) IssueTokenPair(userID, tenantID, role string) (*TokenPair, error) {
-	access, err := m.sign(userID, tenantID, role, TokenTypeAccess, m.accessTTL)
+// IssueTokenPair signs and returns a fresh access + refresh token pair.
+// branchID is empty for cross-branch roles (owner, admin, accountant).
+func (m *Manager) IssueTokenPair(userID, tenantID, branchID, role string) (*TokenPair, error) {
+	access, err := m.sign(userID, tenantID, branchID, role, TokenTypeAccess, m.accessTTL)
 	if err != nil {
 		return nil, fmt.Errorf("jwt: issue access token: %w", err)
 	}
 
-	refresh, err := m.sign(userID, tenantID, role, TokenTypeRefresh, m.refreshTTL)
+	refresh, err := m.sign(userID, tenantID, branchID, role, TokenTypeRefresh, m.refreshTTL)
 	if err != nil {
 		return nil, fmt.Errorf("jwt: issue refresh token: %w", err)
 	}
@@ -109,12 +110,13 @@ func (m *Manager) Verify(tokenStr string, expectedType TokenType) (*Claims, erro
 }
 
 // sign creates and signs a token with the given parameters.
-func (m *Manager) sign(userID, tenantID, role string, tokenType TokenType, ttl time.Duration) (string, error) {
+func (m *Manager) sign(userID, tenantID, branchID, role string, tokenType TokenType, ttl time.Duration) (string, error) {
 	now := time.Now()
 
 	claims := &Claims{
 		UserID:   userID,
 		TenantID: tenantID,
+		BranchID: branchID,
 		Role:     role,
 		Type:     tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{

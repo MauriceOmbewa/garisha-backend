@@ -209,7 +209,7 @@ func (s *Service) LoginWithGoogle(ctx context.Context, tenantID, idToken string)
 		tidStr = *user.TenantID
 	}
 
-	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, user.Role)
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, branchIDStr(user.BranchID), user.Role)
 	if err != nil {
 		return nil, nil, apperr.Internal("failed to issue tokens", err)
 	}
@@ -253,7 +253,7 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*plat
 		tidStr = *user.TenantID
 	}
 
-	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, user.Role)
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, branchIDStr(user.BranchID), user.Role)
 	if err != nil {
 		return nil, fmt.Errorf("auth: refresh: issue tokens: %w", err)
 	}
@@ -310,7 +310,7 @@ func (s *Service) CreateYard(ctx context.Context, userID string, p CreateYardPar
 	}
 
 	// 5. Issue fresh tokens with the new tenant_id.
-	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tenantID, user.Role)
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tenantID, "", user.Role)
 	if err != nil {
 		return nil, nil, apperr.Internal("failed to issue tokens", err)
 	}
@@ -327,6 +327,15 @@ type CreateYardParams struct {
 	Phone        *string
 	BusinessType *string // optional
 }
+
+// branchIDStr converts a *string branch_id to a plain string for JWT embedding.
+func branchIDStr(id *string) string {
+	if id == nil {
+		return ""
+	}
+	return *id
+}
+
 func (s *Service) Me(ctx context.Context, userID string) (*User, error) {
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
@@ -421,7 +430,7 @@ func (s *Service) GoogleOAuthCallback(ctx context.Context, tenantID, code, state
 		tidStr = *user.TenantID
 	}
 
-	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, user.Role)
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tidStr, branchIDStr(user.BranchID), user.Role)
 	if err != nil {
 		return nil, "", apperr.Internal("failed to issue tokens", err)
 	}
