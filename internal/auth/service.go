@@ -11,6 +11,7 @@ import (
 
 	platformauth "github.com/MauriceOmbewa/garisha-backend/internal/platform/auth"
 	apperr "github.com/MauriceOmbewa/garisha-backend/internal/platform/errors"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/rbac"
 )
 
 // ── One-time session code store ───────────────────────────────────────────────
@@ -274,7 +275,7 @@ func (s *Service) CreateYard(ctx context.Context, userID string, p CreateYardPar
 		return nil, nil, apperr.Internal("yard creator not configured", nil)
 	}
 
-	// 1. Ensure user exists and doesn't already have a tenant.
+	// 1. Ensure user exists.
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, nil, apperr.Internal("failed to look up user", err)
@@ -282,9 +283,8 @@ func (s *Service) CreateYard(ctx context.Context, userID string, p CreateYardPar
 	if user == nil {
 		return nil, nil, apperr.NotFound("user")
 	}
-	if user.TenantID != nil {
-		return nil, nil, apperr.Conflict("you already belong to a business — leave it before creating a new one")
-	}
+	// Removed: "already belongs to a business" check.
+	// Users can now own / be members of multiple yards.
 
 	// 2. Create the tenant.
 	tenantID, err := s.yardCreator.CreateTenant(ctx, TenantCreateInput{
@@ -295,22 +295,27 @@ func (s *Service) CreateYard(ctx context.Context, userID string, p CreateYardPar
 		Plan:  "trial",
 	})
 	if err != nil {
-		return nil, nil, err // already wrapped by tenants.Repository
+		return nil, nil, err
 	}
 
-	// 3. Assign user to tenant as owner.
-	if err := s.repo.AssignTenant(ctx, userID, tenantID, "owner"); err != nil {
-		return nil, nil, apperr.Internal("failed to assign user to yard", err)
+	// 3. Add the membership row (owner of the new yard).
+	if err := s.repo.UpsertMembership(ctx, userID, tenantID, nil, "owner", nil); err != nil {
+		return nil, nil, apperr.Internal("failed to add membership", err)
 	}
 
-	// 4. Re-fetch user to get updated tenant_id and role.
-	user, err = s.repo.FindByID(ctx, userID)
-	if err != nil || user == nil {
-		return nil, nil, apperr.Internal("failed to reload user after yard creation", err)
+	// 4. Also update the legacy tenant_id on the users row if this is their first yard.
+	if user.TenantID == nil {
+		if err := s.repo.AssignTenant(ctx, userID, tenantID, "owner"); err != nil {
+			return nil, nil, apperr.Internal("failed to set primary tenant", err)
+		}
+		user, err = s.repo.FindByID(ctx, userID)
+		if err != nil || user == nil {
+			return nil, nil, apperr.Internal("failed to reload user", err)
+		}
 	}
 
-	// 5. Issue fresh tokens with the new tenant_id.
-	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tenantID, "", user.Role)
+	// 5. Issue tokens scoped to the NEW yard.
+	tokens, err := s.jwtManager.IssueTokenPair(user.ID, tenantID, "", "owner")
 	if err != nil {
 		return nil, nil, apperr.Internal("failed to issue tokens", err)
 	}
@@ -347,6 +352,39 @@ func (s *Service) Me(ctx context.Context, userID string) (*User, error) {
 	}
 
 	return user, nil
+}
+
+// InviteUser adds an existing Google SSO user (looked up by email) to the
+// given tenant with the specified role and optional branch.
+// Returns NotFound if no Garisha account exists for the email — the user
+// must sign in with Google first before they can be invited.
+func (s *Service) InviteUser(ctx context.Context, inviterID, tenantID, email, role string, branchID *string) (*User, *Membership, error) {
+	// 1. Find the target user by email.
+	target, err := s.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, nil, apperr.Internal("failed to look up user", err)
+	}
+	if target == nil {
+		return nil, nil, apperr.NotFound("no Garisha account found for " + email + " — the user must sign in with Google SSO first")
+	}
+
+	// 2. Validate role.
+	if !rbac.IsValidRole(role) {
+		return nil, nil, apperr.BadRequest("invalid role: " + role)
+	}
+	if rbac.Role(role) == rbac.RoleSuperAdmin {
+		return nil, nil, apperr.Forbidden("super_admin role cannot be assigned via invite")
+	}
+
+	// 3. Upsert the membership.
+	if err := s.repo.UpsertMembership(ctx, target.ID, tenantID, branchID, role, &inviterID); err != nil {
+		return nil, nil, apperr.Internal("failed to create membership", err)
+	}
+
+	membership := &Membership{TenantID: tenantID, BranchID: branchID, Role: role, IsActive: true}
+
+	s.log.Info("user invited to yard", "inviter", inviterID, "target", target.ID, "tenant", tenantID, "role", role)
+	return target, membership, nil
 }
 
 // GoogleOAuthInitiate validates the requesting origin and returns the Google

@@ -22,6 +22,7 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler, jwtManager *platformauth.Man
 
 	// Protected — valid access token required.
 	authenticate := middleware.Authenticate(jwtManager, log)
-	mux.Handle("GET  /api/v1/auth/me",  authenticate(http.HandlerFunc(h.Me)))
-	mux.Handle("POST /api/v1/yards",    authenticate(http.HandlerFunc(h.CreateYard)))
+	mux.Handle("GET  /api/v1/auth/me",     authenticate(http.HandlerFunc(h.Me)))
+	mux.Handle("POST /api/v1/yards",       authenticate(http.HandlerFunc(h.CreateYard)))
+	mux.Handle("POST /api/v1/users/invite",authenticate(http.HandlerFunc(h.InviteUser)))
 }

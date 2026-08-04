@@ -130,3 +130,70 @@ func scanUser(row pgx.Row) (*User, error) {
 	}
 	return &u, nil
 }
+
+// Membership represents one user-tenant relationship from user_tenants.
+type Membership struct {
+	TenantID   string
+	TenantName string
+	TenantSlug string
+	BranchID   *string
+	Role       string
+	IsActive   bool
+}
+
+// FindMemberships returns all active tenant memberships for a user.
+func (r *Repository) FindMemberships(ctx context.Context, userID string) ([]Membership, error) {
+	const q = `
+		SELECT ut.tenant_id, t.name, t.slug, ut.branch_id, ut.role, ut.is_active
+		FROM   user_tenants ut
+		JOIN   tenants t ON t.id = ut.tenant_id
+		WHERE  ut.user_id = $1
+		ORDER  BY ut.created_at ASC`
+
+	rows, err := r.db.Query(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("auth: find memberships: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Membership
+	for rows.Next() {
+		var m Membership
+		if err := rows.Scan(&m.TenantID, &m.TenantName, &m.TenantSlug, &m.BranchID, &m.Role, &m.IsActive); err != nil {
+			return nil, fmt.Errorf("auth: find memberships scan: %w", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// UpsertMembership inserts or updates a user_tenants row.
+func (r *Repository) UpsertMembership(ctx context.Context, userID, tenantID string, branchID *string, role string, invitedBy *string) error {
+	const q = `
+		INSERT INTO user_tenants (user_id, tenant_id, branch_id, role, invited_by)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id, tenant_id) DO UPDATE
+		SET branch_id  = COALESCE(EXCLUDED.branch_id, user_tenants.branch_id),
+		    role       = EXCLUDED.role,
+		    is_active  = TRUE,
+		    updated_at = NOW()`
+
+	_, err := r.db.Exec(ctx, q, userID, tenantID, branchID, role, invitedBy)
+	if err != nil {
+		return fmt.Errorf("auth: upsert membership: %w", err)
+	}
+	return nil
+}
+
+// FindByEmail returns a user by email — used for invite lookups.
+func (r *Repository) FindByEmail(ctx context.Context, email string) (*User, error) {
+	q := `SELECT ` + userCols + ` FROM users WHERE email = $1 LIMIT 1`
+	user, err := scanUser(r.db.QueryRow(ctx, q, email))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("auth: find by email: %w", err)
+	}
+	return user, nil
+}

@@ -110,15 +110,25 @@ type authResponse struct {
 	User userDTO `json:"user"`
 }
 
+type membershipDTO struct {
+	TenantID   string  `json:"tenant_id"`
+	TenantName string  `json:"tenant_name"`
+	TenantSlug string  `json:"tenant_slug"`
+	BranchID   *string `json:"branch_id"`
+	Role       string  `json:"role"`
+	IsActive   bool    `json:"is_active"`
+}
+
 type userDTO struct {
-	ID          string   `json:"id"`
-	TenantID    *string  `json:"tenant_id"`
-	BranchID    *string  `json:"branch_id"`
-	Email       string   `json:"email"`
-	Name        string   `json:"name"`
-	AvatarURL   *string  `json:"avatar_url"`
-	Role        string   `json:"role"`
-	Permissions []string `json:"permissions"`
+	ID          string          `json:"id"`
+	TenantID    *string         `json:"tenant_id"`
+	BranchID    *string         `json:"branch_id"`
+	Email       string          `json:"email"`
+	Name        string          `json:"name"`
+	AvatarURL   *string         `json:"avatar_url"`
+	Role        string          `json:"role"`
+	Permissions []string        `json:"permissions"`
+	Memberships []membershipDTO `json:"memberships"`
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -190,7 +200,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 // Me godoc
 // GET /api/v1/auth/me  (requires Authenticate middleware)
-// Returns the currently authenticated user's profile.
+// Returns the currently authenticated user's profile with all memberships.
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.RequireClaims(r.Context(), w, h.log)
 	if !ok {
@@ -203,7 +213,48 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, http.StatusOK, "user retrieved", toUserDTO(user), h.log)
+	memberships, _ := h.svc.repo.FindMemberships(r.Context(), user.ID)
+
+	response.Success(w, http.StatusOK, "user retrieved", toUserDTOWithMemberships(user, memberships), h.log)
+}
+
+// InviteUser godoc
+// POST /api/v1/users/invite
+// Looks up an existing Google SSO user by email and adds them to the caller's tenant.
+// The invited user must have previously signed in via Google SSO.
+func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.RequireClaims(r.Context(), w, h.log)
+	if !ok {
+		return
+	}
+
+	type inviteRequest struct {
+		Email    string  `json:"email"     validate:"required,email"`
+		Role     string  `json:"role"      validate:"required"`
+		BranchID *string `json:"branch_id"`
+	}
+
+	var req inviteRequest
+	if err := validation.DecodeJSON(r, &req); err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	user, membership, err := h.svc.InviteUser(r.Context(), claims.UserID, claims.TenantID, req.Email, req.Role, req.BranchID)
+	if err != nil {
+		apperr.Handle(w, r, err, h.log)
+		return
+	}
+
+	dto := toUserDTO(user)
+	dto.Memberships = []membershipDTO{{
+		TenantID: membership.TenantID,
+		Role:     membership.Role,
+		BranchID: membership.BranchID,
+		IsActive: membership.IsActive,
+	}}
+
+	response.Success(w, http.StatusCreated, "user invited to yard", dto, h.log)
 }
 
 // GoogleOAuthInitiate godoc
@@ -389,5 +440,21 @@ func toUserDTO(u *User) userDTO {
 		AvatarURL:   u.AvatarURL,
 		Role:        u.Role,
 		Permissions: perms,
+		Memberships: []membershipDTO{},
 	}
+}
+
+func toUserDTOWithMemberships(u *User, memberships []Membership) userDTO {
+	dto := toUserDTO(u)
+	for _, m := range memberships {
+		dto.Memberships = append(dto.Memberships, membershipDTO{
+			TenantID:   m.TenantID,
+			TenantName: m.TenantName,
+			TenantSlug: m.TenantSlug,
+			BranchID:   m.BranchID,
+			Role:       m.Role,
+			IsActive:   m.IsActive,
+		})
+	}
+	return dto
 }
