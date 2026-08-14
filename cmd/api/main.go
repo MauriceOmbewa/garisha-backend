@@ -317,6 +317,12 @@ func main() {
 	filesHandler := files.NewHandler(filesService, log)
 
 	// -------------------------------------------------------------------------
+	// Company public handler (white-label bootstrap — no auth)
+	// -------------------------------------------------------------------------
+
+	companyPublicHandler := company.NewPublicHandler(tenantsRepo, companyRepo, log)
+
+	// -------------------------------------------------------------------------
 	// Background workers
 	// -------------------------------------------------------------------------
 
@@ -366,6 +372,7 @@ func main() {
 		ReportsHandler:        reportsHandler,
 		DashboardHandler:      dashboardHandler,
 		FilesHandler:          filesHandler,
+		CompanyPublicHandler:  companyPublicHandler,
 	})
 
 	// -------------------------------------------------------------------------

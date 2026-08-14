@@ -60,6 +60,7 @@ type Dependencies struct {
 	ReportsHandler        *reports.Handler
 	DashboardHandler      *dashboard.Handler
 	FilesHandler          *files.Handler
+	CompanyPublicHandler  *company.PublicHandler
 }
 
 // New constructs the root http.Handler with all middleware applied and all
@@ -125,6 +126,9 @@ func New(deps Dependencies) http.Handler {
 
 	// ── File management (tenant-scoped) ───────────────────────────────────────
 	files.RegisterRoutes(mux, deps.FilesHandler, deps.JWTManager, deps.TenantResolver, deps.Log)
+
+	// ── Public white-label tenant config (no auth) ─────────────────────────
+	company.RegisterPublicRoutes(mux, deps.CompanyPublicHandler)
 
 	// ── Global middleware chain ───────────────────────────────────────────────
 	// Execution order (outermost → innermost):

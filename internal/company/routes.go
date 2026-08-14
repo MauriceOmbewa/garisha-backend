@@ -9,7 +9,15 @@ import (
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/rbac"
 )
 
-// RegisterRoutes mounts the company profile endpoints onto mux.
+// RegisterPublicRoutes mounts the public (no-auth) tenant bootstrap endpoint.
+// Call this from router.New alongside the other domain registrations.
+//
+//	GET /api/v1/public/tenant/{slug}
+func RegisterPublicRoutes(mux *http.ServeMux, h *PublicHandler) {
+	mux.HandleFunc("GET /api/v1/public/tenant/{slug}", h.GetPublicTenant)
+}
+
+// RegisterRoutes mounts the authenticated company profile endpoints onto mux.
 // All routes require tenant resolution, authentication, and tenant scope
 // enforcement.  Write operations additionally require settings permission.
 func RegisterRoutes(
