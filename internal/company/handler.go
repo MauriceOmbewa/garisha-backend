@@ -6,6 +6,7 @@ import (
 
 	apperr "github.com/MauriceOmbewa/garisha-backend/internal/platform/errors"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/response"
+	"github.com/MauriceOmbewa/garisha-backend/internal/platform/tenant"
 	"github.com/MauriceOmbewa/garisha-backend/internal/platform/validation"
 )
 
@@ -72,6 +73,11 @@ type profileDTO struct {
 	ID       string `json:"id,omitempty"`
 	TenantID string `json:"tenant_id"`
 
+	// Tenant identity — included so the admin frontend can construct the
+	// customer portal URL without needing a separate /auth/me round-trip.
+	TenantSlug string `json:"tenant_slug"`
+	TenantName string `json:"tenant_name"`
+
 	LegalName      *string `json:"legal_name"`
 	BusinessType   *string `json:"business_type"`
 	RegistrationNo *string `json:"registration_no"`
@@ -122,7 +128,8 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, http.StatusOK, "company profile retrieved", toDTO(profile), h.log)
+	t := tenant.GetTenant(r.Context())
+	response.Success(w, http.StatusOK, "company profile retrieved", toDTO(profile, t), h.log)
 }
 
 // UpdateProfile godoc
@@ -182,12 +189,12 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, http.StatusOK, "company profile updated", toDTO(profile), h.log)
+	response.Success(w, http.StatusOK, "company profile updated", toDTO(profile, tenant.GetTenant(r.Context())), h.log)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-func toDTO(p *Profile) profileDTO {
+func toDTO(p *Profile, t *tenant.Tenant) profileDTO {
 	dto := profileDTO{
 		ID:             p.ID,
 		TenantID:       p.TenantID,
@@ -218,6 +225,13 @@ func toDTO(p *Profile) profileDTO {
 		EnableService:  p.EnableService,
 		Currency:       p.Currency,
 		Timezone:       p.Timezone,
+	}
+
+	// Enrich with tenant identity from the request context so the admin
+	// frontend can build the customer portal URL without a second API call.
+	if t != nil {
+		dto.TenantSlug = t.Slug
+		dto.TenantName = t.Name
 	}
 
 	if !p.UpdatedAt.IsZero() {

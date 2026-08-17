@@ -121,7 +121,7 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		    social_links, primary_color, secondary_color, font_family,
 		    operating_hours, enable_hire, enable_sales, enable_service,
 		    currency, timezone,
-		    tagline, logo_url, hero_image_url, hero_eyebrow, cover_image_url,
+		    tagline, logo_url, favicon_url, hero_image_url, hero_eyebrow, cover_image_url,
 		    created_at, updated_at`
 
 	profile, err := scanProfile(r.db.QueryRow(ctx, q,
