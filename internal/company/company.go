@@ -37,6 +37,14 @@ type Profile struct {
 	SecondaryColor *string
 	FontFamily     *string
 
+	// Visual branding for customer portal
+	Tagline       *string
+	LogoURL       *string // stored here for company-profile-driven branding
+	FaviconURL    *string
+	HeroImageURL  *string
+	HeroEyebrow   *string
+	CoverImageURL *string
+
 	// Operating hours: map of weekday → DaySchedule
 	OperatingHours map[string]DaySchedule
 

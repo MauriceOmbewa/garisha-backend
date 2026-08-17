@@ -155,7 +155,7 @@ func buildPublicDTO(rec *tenant.Record, p *Profile) publicTenantDTO {
 		Timezone:        "Africa/Nairobi",
 	}
 
-	// Logo comes from the tenant record
+	// Logo — company profile takes priority, fall back to tenant record
 	if rec.LogoURL != nil && *rec.LogoURL != "" {
 		dto.LogoURL = rec.LogoURL
 	}
@@ -181,13 +181,26 @@ func buildPublicDTO(rec *tenant.Record, p *Profile) publicTenantDTO {
 	}
 
 	// ── Text content ──────────────────────────────────────────────────────────
-	if p.Description != nil {
+	if p.Tagline != nil && *p.Tagline != "" {
+		dto.Tagline = *p.Tagline
+	} else if p.Description != nil {
 		dto.Description = p.Description
-		// Use first sentence as tagline if no dedicated tagline field
 		dto.Tagline = firstSentence(*p.Description)
 	} else {
 		dto.Tagline = "Welcome to " + rec.Name
 	}
+	if p.Description != nil {
+		dto.Description = p.Description
+	}
+
+	// ── Image / visual fields ─────────────────────────────────────────────────
+	if p.LogoURL != nil && *p.LogoURL != "" {
+		dto.LogoURL = p.LogoURL  // company profile logo takes priority over tenant record logo
+	}
+	dto.FaviconURL    = p.FaviconURL
+	dto.HeroImageURL  = p.HeroImageURL
+	dto.HeroEyebrow   = p.HeroEyebrow
+	dto.CoverImageURL = p.CoverImageURL
 
 	// ── Service flags ─────────────────────────────────────────────────────────
 	dto.ServicesEnabled = servicesDTO{

@@ -34,7 +34,11 @@ type updateProfileRequest struct {
 	BusinessType   *string `json:"business_type"    validate:"omitempty,oneof=car_yard dealership rental service_center mixed"`
 	RegistrationNo *string `json:"registration_no"`
 	TaxPIN         *string `json:"tax_pin"`
-	Description    *string `json:"description"      validate:"omitempty,max=1000"`
+	Description    *string `json:"description"      validate:"omitempty,max=2000"`
+	Tagline        *string `json:"tagline"          validate:"omitempty,max=120"`
+	LogoURL        *string `json:"logo_url"`
+	HeroImageURL   *string `json:"hero_image_url"`
+	HeroEyebrow    *string `json:"hero_eyebrow"     validate:"omitempty,max=80"`
 
 	Country      *string `json:"country"`
 	City         *string `json:"city"`
@@ -73,6 +77,10 @@ type profileDTO struct {
 	RegistrationNo *string `json:"registration_no"`
 	TaxPIN         *string `json:"tax_pin"`
 	Description    *string `json:"description"`
+	Tagline        *string `json:"tagline"`
+	LogoURL        *string `json:"logo_url"`
+	HeroImageURL   *string `json:"hero_image_url"`
+	HeroEyebrow    *string `json:"hero_eyebrow"`
 
 	Country      *string `json:"country"`
 	City         *string `json:"city"`
@@ -146,6 +154,10 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		RegistrationNo: req.RegistrationNo,
 		TaxPIN:         req.TaxPIN,
 		Description:    req.Description,
+		Tagline:        req.Tagline,
+		LogoURL:        req.LogoURL,
+		HeroImageURL:   req.HeroImageURL,
+		HeroEyebrow:    req.HeroEyebrow,
 		Country:        req.Country,
 		City:           req.City,
 		AddressLine1:   req.AddressLine1,
@@ -184,6 +196,10 @@ func toDTO(p *Profile) profileDTO {
 		RegistrationNo: p.RegistrationNo,
 		TaxPIN:         p.TaxPIN,
 		Description:    p.Description,
+		Tagline:        p.Tagline,
+		LogoURL:        p.LogoURL,
+		HeroImageURL:   p.HeroImageURL,
+		HeroEyebrow:    p.HeroEyebrow,
 		Country:        p.Country,
 		City:           p.City,
 		AddressLine1:   p.AddressLine1,

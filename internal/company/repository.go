@@ -29,7 +29,9 @@ func (r *Repository) FindByTenantID(ctx context.Context, tenantID string) (*Prof
 		       support_email, support_phone, whatsapp,
 		       social_links, primary_color, secondary_color, font_family,
 		       operating_hours, enable_hire, enable_sales, enable_service,
-		       currency, timezone, created_at, updated_at
+		       currency, timezone,
+		       tagline, logo_url, favicon_url, hero_image_url, hero_eyebrow, cover_image_url,
+		       created_at, updated_at
 		FROM   company_profiles
 		WHERE  tenant_id = $1
 		LIMIT  1`
@@ -62,6 +64,7 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		INSERT INTO company_profiles (
 		    tenant_id,
 		    legal_name, business_type, registration_no, tax_pin, description,
+		    tagline, logo_url, hero_image_url, hero_eyebrow,
 		    country, city, address_line1, address_line2, postal_code,
 		    support_email, support_phone, whatsapp,
 		    social_links, primary_color, secondary_color, font_family,
@@ -70,11 +73,12 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		) VALUES (
 		    $1,
 		    $2,  $3,  $4,  $5,  $6,
-		    $7,  $8,  $9,  $10, $11,
-		    $12, $13, $14,
-		    $15, $16, $17, $18,
+		    $7,  $8,  $9,  $10,
+		    $11, $12, $13, $14, $15,
+		    $16, $17, $18,
 		    $19, $20, $21, $22,
-		    $23, $24
+		    $23, $24, $25, $26,
+		    $27, $28
 		)
 		ON CONFLICT (tenant_id) DO UPDATE SET
 		    legal_name      = COALESCE(EXCLUDED.legal_name,      company_profiles.legal_name),
@@ -82,6 +86,10 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		    registration_no = COALESCE(EXCLUDED.registration_no, company_profiles.registration_no),
 		    tax_pin         = COALESCE(EXCLUDED.tax_pin,         company_profiles.tax_pin),
 		    description     = COALESCE(EXCLUDED.description,     company_profiles.description),
+		    tagline         = COALESCE(EXCLUDED.tagline,         company_profiles.tagline),
+		    logo_url        = COALESCE(EXCLUDED.logo_url,        company_profiles.logo_url),
+		    hero_image_url  = COALESCE(EXCLUDED.hero_image_url,  company_profiles.hero_image_url),
+		    hero_eyebrow    = COALESCE(EXCLUDED.hero_eyebrow,    company_profiles.hero_eyebrow),
 		    country         = COALESCE(EXCLUDED.country,         company_profiles.country),
 		    city            = COALESCE(EXCLUDED.city,            company_profiles.city),
 		    address_line1   = COALESCE(EXCLUDED.address_line1,   company_profiles.address_line1),
@@ -90,13 +98,13 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		    support_email   = COALESCE(EXCLUDED.support_email,   company_profiles.support_email),
 		    support_phone   = COALESCE(EXCLUDED.support_phone,   company_profiles.support_phone),
 		    whatsapp        = COALESCE(EXCLUDED.whatsapp,        company_profiles.whatsapp),
-		    social_links    = CASE WHEN $15::jsonb = '{}'::jsonb
+		    social_links    = CASE WHEN $19::jsonb = '{}'::jsonb
 		                          THEN company_profiles.social_links
 		                          ELSE EXCLUDED.social_links END,
 		    primary_color   = COALESCE(EXCLUDED.primary_color,   company_profiles.primary_color),
 		    secondary_color = COALESCE(EXCLUDED.secondary_color, company_profiles.secondary_color),
 		    font_family     = COALESCE(EXCLUDED.font_family,     company_profiles.font_family),
-		    operating_hours = CASE WHEN $19::jsonb = '{}'::jsonb
+		    operating_hours = CASE WHEN $23::jsonb = '{}'::jsonb
 		                          THEN company_profiles.operating_hours
 		                          ELSE EXCLUDED.operating_hours END,
 		    enable_hire     = EXCLUDED.enable_hire,
@@ -112,11 +120,14 @@ func (r *Repository) Upsert(ctx context.Context, p UpsertParams) (*Profile, erro
 		    support_email, support_phone, whatsapp,
 		    social_links, primary_color, secondary_color, font_family,
 		    operating_hours, enable_hire, enable_sales, enable_service,
-		    currency, timezone, created_at, updated_at`
+		    currency, timezone,
+		    tagline, logo_url, hero_image_url, hero_eyebrow, cover_image_url,
+		    created_at, updated_at`
 
 	profile, err := scanProfile(r.db.QueryRow(ctx, q,
 		p.TenantID,
 		p.LegalName, p.BusinessType, p.RegistrationNo, p.TaxPIN, p.Description,
+		p.Tagline, p.LogoURL, p.HeroImageURL, p.HeroEyebrow,
 		p.Country, p.City, p.AddressLine1, p.AddressLine2, p.PostalCode,
 		p.SupportEmail, p.SupportPhone, p.WhatsApp,
 		socialJSON, p.PrimaryColor, p.SecondaryColor, p.FontFamily,
@@ -140,6 +151,10 @@ type UpsertParams struct {
 	RegistrationNo *string
 	TaxPIN         *string
 	Description    *string
+	Tagline        *string
+	LogoURL        *string
+	HeroImageURL   *string
+	HeroEyebrow    *string
 	Country        *string
 	City           *string
 	AddressLine1   *string
@@ -193,6 +208,12 @@ func scanProfile(row pgx.Row) (*Profile, error) {
 		&p.EnableService,
 		&p.Currency,
 		&p.Timezone,
+		&p.Tagline,
+		&p.LogoURL,
+		&p.FaviconURL,
+		&p.HeroImageURL,
+		&p.HeroEyebrow,
+		&p.CoverImageURL,
 		&p.CreatedAt,
 		&p.UpdatedAt,
 	)

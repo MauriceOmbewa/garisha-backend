@@ -77,6 +77,10 @@ func (s *Service) Update(ctx context.Context, p UpdateInput) (*Profile, error) {
 		RegistrationNo: p.RegistrationNo,
 		TaxPIN:         p.TaxPIN,
 		Description:    p.Description,
+		Tagline:        p.Tagline,
+		LogoURL:        p.LogoURL,
+		HeroImageURL:   p.HeroImageURL,
+		HeroEyebrow:    p.HeroEyebrow,
 		Country:        p.Country,
 		City:           p.City,
 		AddressLine1:   p.AddressLine1,
@@ -114,6 +118,10 @@ type UpdateInput struct {
 	RegistrationNo *string
 	TaxPIN         *string
 	Description    *string
+	Tagline        *string
+	LogoURL        *string
+	HeroImageURL   *string
+	HeroEyebrow    *string
 	Country        *string
 	City           *string
 	AddressLine1   *string
